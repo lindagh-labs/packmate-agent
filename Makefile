@@ -93,7 +93,7 @@ verify-github-write-readiness:
 	@bash "$(ROOT)/scripts/verify-github-write-readiness.sh"
 
 verify-demo-baseline:
-	@bash "$(ROOT)/scripts/verify-demo-baseline.sh"
+	@bash "$(ROOT)/scripts/verify-demo-baseline.sh" $(if $(PIPELINERUN),--pipelinerun "$(PIPELINERUN)",)
 
 prepare-demo-baseline:
 	@bash "$(ROOT)/scripts/prepare-demo-baseline.sh"

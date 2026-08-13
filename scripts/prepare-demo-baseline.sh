@@ -268,5 +268,5 @@ printf 'RESULT  DEMO_BASELINE_READY branch=%s changed=%s baseline=%s\n' \
 printf 'RESULT  CONFIG_SAVED GIT_REVISION=%s PROMOTION_BASE_BRANCH=%s PACKMATE_DEMO_BRANCH=%s\n' \
   "${saved_revision}" "${saved_base}" "${saved_demo}"
 printf 'NEXT    make verify-demo-fork\n'
-printf 'ACTION  Then: make verify-demo-baseline -- --pipelinerun <name>\n'
+printf 'ACTION  Then: make verify-demo-baseline PIPELINERUN=<name>\n'
 exit 0

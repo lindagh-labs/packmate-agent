@@ -14,6 +14,16 @@ OBSOLETE="sha256:ae2c1317fa423c188c408d81e61b87dbc5b559577272ac189bea4eede92661c
 
 echo "=== Packmate portability failure-scenario checks ==="
 
+for run_file in \
+  "${ROOT}/.tekton/lab/packmate-ci-run.yaml" \
+  "${ROOT}/.tekton/lab/packmate-ci-pipelinerun.example.yaml"; do
+  if ! grep -q 'YOUR_GITHUB_USERNAME\|value: packmate-v2' "${run_file}"; then
+    pass "PipelineRun inherits rendered fork/branch defaults ($(basename "${run_file}"))"
+  else
+    fail "PipelineRun overrides rendered fork/branch defaults ($(basename "${run_file}"))"
+  fi
+done
+
 # 14/15/16 template guards
 if [[ -f "${TPL}" ]] && ! grep -q "${OBSOLETE}" "${TPL}"; then
   pass "14. Pipeline template has no obsolete digest"

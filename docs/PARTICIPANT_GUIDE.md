@@ -469,7 +469,7 @@ An immutable digest identifies exactly which tested image is being promoted. The
 
 ```bash
 make verify-github-write-readiness
-make verify-demo-baseline
+make verify-demo-baseline PIPELINERUN=<pipelinerun-name>
 ```
 
 **REQUIRED RESULT:** GitHub writes target your fork and a promotion difference exists.
