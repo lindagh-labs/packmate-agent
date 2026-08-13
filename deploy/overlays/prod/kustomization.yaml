@@ -47,6 +47,15 @@ patches:
   - path: configmap-patch.yaml
   - path: route-timeout-patch.yaml
   - target:
+      version: v1
+      kind: ServiceAccount
+      labelSelector: app.kubernetes.io/component in (backend,frontend,mcp)
+    patch: |-
+      - op: add
+        path: /imagePullSecrets
+        value:
+          - name: packmate-ghcr-pull
+  - target:
       group: apps
       version: v1
       kind: Deployment

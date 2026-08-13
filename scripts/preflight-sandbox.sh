@@ -5,6 +5,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck disable=SC1091
 source "${ROOT}/scripts/lib/sandbox-common.sh"
+# shellcheck disable=SC1091
+source "${ROOT}/scripts/lib/fork-safety.sh"
 
 PASS=0
 WARN=0
@@ -17,6 +19,7 @@ block() { printf 'BLOCKED              %s\n' "$*"; BLOCK=$((BLOCK + 1)); }
 opt() { printf 'OPTIONAL_UNAVAILABLE %s\n' "$*"; OPT=$((OPT + 1)); }
 
 packmate_require_oc
+packmate_require_human_user || exit 1
 if [[ -f "${ROOT}/config/sandbox.env" ]]; then
   packmate_load_config "${ROOT}" || true
 else
@@ -35,10 +38,13 @@ printf 'namespace=%s model=%s/%s\n\n' "${PACKMATE_NAMESPACE}" "${MODEL_NAMESPACE
 if [[ -d "${ROOT}/.git" ]]; then
   pass "Repository root is a valid Git clone (${ROOT})"
   BR="$(git -C "${ROOT}" branch --show-current 2>/dev/null || true)"
-  if [[ "${BR}" == "packmate-v2" ]]; then
-    pass "Current branch is packmate-v2"
+  EXPECTED_BRANCH="${GIT_REVISION:-packmate-v2}"
+  EXPECTED_BASE="${PROMOTION_BASE_BRANCH:-${EXPECTED_BRANCH}}"
+  if [[ "${BR}" == "${EXPECTED_BRANCH}" && "${EXPECTED_BRANCH}" == "${EXPECTED_BASE}" ]]; then
+    pass "Current branch matches GitOps and promotion settings (${BR})"
   else
-    block "Current branch is packmate-v2 (got '${BR:-detached}')"
+    block "Branch settings disagree (current=${BR:-detached} GIT_REVISION=${EXPECTED_BRANCH} PROMOTION_BASE_BRANCH=${EXPECTED_BASE})"
+    printf 'ACTION               Run make configure-participant; for a prepared demo branch run make prepare-demo-baseline\n'
   fi
 else
   block "Repository root is a valid Git clone (missing .git under ${ROOT})"
@@ -48,7 +54,25 @@ fi
 if [[ -f "${ROOT}/config/sandbox.env" ]]; then
   pass "config/sandbox.env present"
 else
-  block "config/sandbox.env missing — copy from config/sandbox.env.example"
+  block "config/sandbox.env missing — run make configure-participant"
+fi
+
+# Participant fork and registry settings must be concrete and coordinated before
+# any cluster work or candidate publication.
+CONFIGURED_REPO="$(packmate_normalize_github_owner_repo "${GIT_REPO_URL:-}" 2>/dev/null || true)"
+if [[ -n "${CONFIGURED_REPO}" ]] && ! packmate_is_canonical_owner_repo "${CONFIGURED_REPO}"; then
+  pass "GitOps repository is a participant fork (${CONFIGURED_REPO})"
+else
+  block "GIT_REPO_URL is not a configured participant fork"
+  printf 'ACTION               Run make configure-participant\n'
+fi
+CONFIGURED_FORK_OWNER="${CONFIGURED_REPO%%/*}"
+if [[ "${PACKMATE_PROMOTION_REGISTRY_OWNER:-}" =~ ^[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?$ ]] \
+  && [[ "${PACKMATE_PROMOTION_REGISTRY_OWNER,,}" == "${CONFIGURED_FORK_OWNER,,}" ]]; then
+  pass "GHCR owner matches the participant fork (${PACKMATE_PROMOTION_REGISTRY_OWNER})"
+else
+  block "GHCR owner does not match the participant fork (${PACKMATE_PROMOTION_REGISTRY_OWNER:-unset} vs ${CONFIGURED_FORK_OWNER:-unset})"
+  printf 'ACTION               Run make configure-participant\n'
 fi
 
 # oc / connection

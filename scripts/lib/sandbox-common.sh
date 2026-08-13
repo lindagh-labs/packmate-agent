@@ -11,7 +11,7 @@ packmate_load_config() {
   local cfg="${PACKMATE_CONFIG:-${root}/config/sandbox.env}"
   if [[ ! -f "${cfg}" ]]; then
     printf 'ERROR: configuration file missing: %s\n' "${cfg}" >&2
-    printf 'Copy config/sandbox.env.example to config/sandbox.env and set image refs.\n' >&2
+    printf 'Run make configure-participant from the repository root.\n' >&2
     return 1
   fi
   # shellcheck disable=SC1090
@@ -70,6 +70,23 @@ packmate_die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 packmate_require_oc() {
   command -v oc >/dev/null || packmate_die "oc CLI not found"
   oc whoami >/dev/null 2>&1 || packmate_die "not logged in to OpenShift (oc whoami failed)"
+}
+
+packmate_require_human_user() {
+  local user
+  user="$(oc whoami 2>/dev/null || true)"
+  [[ -n "${user}" ]] || packmate_die "BLOCKED_OPENSHIFT_AUTHENTICATION — run: oc login --web"
+  if [[ "${user}" == system:serviceaccount:* ]]; then
+    cat >&2 <<EOF
+BLOCKED_OPENSHIFT_SERVICE_ACCOUNT_IDENTITY
+DETAIL  oc is authenticated as ${user}
+ACTION  Run: oc logout
+ACTION  Run: oc login --web
+ACTION  Confirm your human sandbox username with: oc whoami
+EOF
+    return 1
+  fi
+  printf 'PASS  OpenShift human identity confirmed (%s)\n' "${user}"
 }
 
 packmate_api_has() {

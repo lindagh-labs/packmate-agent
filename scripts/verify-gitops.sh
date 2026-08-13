@@ -17,6 +17,9 @@ info() { printf 'INFO  %s\n' "$*"; }
 
 printf '=== Packmate verify-gitops ===\n'
 
+packmate_require_oc
+packmate_require_human_user || exit 1
+
 # Operator / instance (reuse checker output)
 if bash "${ROOT}/scripts/check-openshift-gitops.sh" >/tmp/packmate-vg-gitops.txt 2>&1; then
   grep '^PASS' /tmp/packmate-vg-gitops.txt || true

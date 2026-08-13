@@ -7,6 +7,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "${ROOT}/scripts/lib/sandbox-common.sh"
 
 packmate_require_oc
+packmate_require_human_user || exit 1
 if [[ -f "${ROOT}/config/sandbox.env" ]]; then
   packmate_load_config "${ROOT}" || exit 1
 fi

@@ -40,6 +40,9 @@ fi
 
 command -v oc >/dev/null 2>&1 || die "oc CLI not found"
 oc whoami >/dev/null 2>&1 || die "not logged in to OpenShift (oc whoami failed)"
+if declare -F packmate_require_human_user >/dev/null 2>&1; then
+  packmate_require_human_user || exit 1
+fi
 
 PACKMATE_ARGO_GROUP="${PACKMATE_ARGO_GROUP:-packmate-lab-users}"
 PACKMATE_PARTICIPANT_USER="${PACKMATE_PARTICIPANT_USER:-$(oc whoami)}"

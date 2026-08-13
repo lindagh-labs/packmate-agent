@@ -3,7 +3,7 @@
 Date: 2026-07-22 (original); **updated 2026-07-23 for the DEV→PROD extension (see "DEV→PROD update" below)**
 Branch: `packmate-v2`
 Focus (2026-07-22): OpenShift AI first-touch lab (~120 min) + visual Pipelines/GitOps intro.
-Focus (2026-07-23): extended to a full DEV (`packmate-lab`) → PROD (`packmate-prod`) promotion/rollback path (~150 min, Modules A–F).
+Focus (2026-07-23): extended to a full DEV (`packmate-lab`) → PROD (`packmate-prod`) path. The current beginner workshop uses Modules 1–9 and ends after verified PROD.
 
 ## Validated product core (do not regress)
 
@@ -34,7 +34,7 @@ Focus (2026-07-23): extended to a full DEV (`packmate-lab`) → PROD (`packmate-
 |------|--------|
 | OPENSHIFT_AI_AVAILABLE | Yes (`rhods-operator.3.4.2`) |
 | PIPELINES_AVAILABLE | Yes (`openshift-pipelines-operator-rh.v1.22.4`) |
-| GITOPS_AVAILABLE | Yes — installed mid-engagement (see `docs/INSTALL_GITOPS_PREREQUISITE.md`); now a **hard requirement** for Modules D–F, not optional |
+| GITOPS_AVAILABLE | Yes — a hard requirement for the current GitOps and production modules |
 | ROLLOUTS_AVAILABLE | **No** — optional canary annex only (`deploy/overlays/prod-canary-annex/`) |
 | EVALHUB_AVAILABLE | CRD only — `EVALHUB_OPTIONAL_NOT_CONFIGURED` |
 
@@ -45,7 +45,7 @@ Default (current `config/sandbox.env.example`): **automated**, `CREATE_MODEL_CUS
 ## Honest gaps
 
 - GHCR images persist only after the GitHub Actions workflow is executed and packages made public
-- Modules D–F (promotion, production, rollback) need the OpenShift GitOps Operator — no screenshot fallback for the promotion PR review, but Sync itself can be documented from screenshots if the Operator is briefly unavailable
+- The GitOps preparation, promotion, and production modules need the OpenShift GitOps Operator.
 - EvalHub / Rollouts not part of the mandatory path
 
 ## Release validation (2026-07-22, DEV path)
@@ -58,6 +58,6 @@ Default (current `config/sandbox.env.example`): **automated**, `CREATE_MODEL_CUS
 
 ## DEV→PROD update (2026-07-23)
 
-Added since the 2026-07-22 run above: namespace `packmate-prod` (runtime only, no DSP labels), Secret `packmate-prod-llm`, cross-namespace image-pull RBAC, Argo CD `AppProject/packmate` + `Application/packmate-prod` (manual Sync, prune/self-heal off), OpenShift group `packmate-lab-users` with an AppProject **promoter** role (Sync-only on `packmate-prod`), `scripts/promote-backend-image.sh --create-pr` and `scripts/rollback-prod-image.sh --create-pr` (Git pull request promotion/rollback, never a direct cluster edit), and `deploy/overlays/prod-canary-annex/` (the former in-overlay canary/Rollout objects, now an explicit optional annex instead of the default PROD path).
+Added since the 2026-07-22 run above: runtime-only `packmate-prod`, Secret `packmate-prod-llm`, image-pull access, Argo CD AppProject/Application with manual Sync, OpenShift SSO promoter RBAC, Git pull-request promotion, and the optional canary annex.
 
-Re-run in this docs pass (offline/local, no live cluster available): `make validate-prod` **passed**; backend pytest **125 passed**; deterministic quality gate **0.9559 PASS**; `scripts/security-check.sh` **all checks passed**. Frontend/MCP suites carried forward from the 2026-07-22 numbers below (not re-run here). A full live-cluster DEV→PROD→rollback cycle (Modules D–F) has **not** been re-executed since this automation was added — see `docs/implementation/LAB_ACCEPTANCE_REPORT.md` § 12 for the exact scope of what remains to verify on a live cluster before the next class.
+Re-run in that documentation pass (offline/local, no live cluster available): PROD validation, backend tests, deterministic quality gate, and security checks passed. A full current Modules 1–9 live-cluster journey still requires a fresh RHDP acceptance run.

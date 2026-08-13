@@ -57,7 +57,7 @@ usage() {
 # Argument parsing (supports legacy positional digest + flag-based mode)
 # ---------------------------------------------------------------------------
 PIPELINERUN=""
-NAMESPACE="packmate-lab"
+NAMESPACE="${PACKMATE_NAMESPACE:-packmate-lab}"
 THRESHOLD="0.90"
 CREATE_PR="false"
 MERGE_PR="false"
@@ -114,6 +114,9 @@ IMAGE_NAME="${IMAGE_NAME:-${PACKMATE_PROMOTION_REGISTRY:-ghcr.io}/${PACKMATE_PRO
 require_oc() {
   command -v oc >/dev/null 2>&1 || die "oc CLI not found (required for --pipelinerun mode)"
   oc whoami >/dev/null 2>&1 || die "not logged in to OpenShift (oc whoami failed)"
+  if [[ "$(oc whoami)" == system:serviceaccount:* ]]; then
+    die "BLOCKED_OPENSHIFT_SERVICE_ACCOUNT_IDENTITY — run oc logout, then oc login --web"
+  fi
 }
 
 normalize_digest() {
@@ -283,7 +286,7 @@ DETAIL  current PROD digest=${current}
 ACTION  Prepare the disposable fork/demo branch with the known-good baseline
         before starting the Pipeline exercise.
 ACTION  make verify-demo-baseline
-ACTION  CONFIRM_DEMO_BASELINE_RESET=participant-fork-only make prepare-demo-baseline
+ACTION  make prepare-demo-baseline
 EOF
   exit 1
 }
@@ -600,17 +603,9 @@ This PR updates **only** \`deploy/overlays/prod/kustomization.yaml\` (backend \`
 No OpenShift internal-registry references are permitted in the shared PROD overlay.
 No changes to the dev overlay, frontend image, MCP images, or application code.
 
-### Rollback procedure
-
-If this promotion causes issues in packmate-prod:
-
-\`\`\`bash
-./scripts/rollback-prod-image.sh --create-pr
-\`\`\`
-
-This restores the previous backend digest from git history of the prod overlay and opens a
-rollback PR the same way. Argo CD Application \`packmate-prod\` still requires a manual Sync
-after merge (prune=false, selfHeal=false).
+Recovery remains GitOps-owned: correct the desired image in Git through a reviewed change.
+Never patch the Git-managed PROD Deployment directly. Argo CD Application \`packmate-prod\`
+still requires a manual Sync after an approved merge (prune=false, selfHeal=false).
 EOF
 
 FORK_REPO="$(packmate_normalize_github_owner_repo "$(packmate_writable_repo_url)")"

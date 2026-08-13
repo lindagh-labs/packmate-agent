@@ -28,7 +28,7 @@
 - Stable Service remains `packmate-backend` (frontend Nginx upstream unchanged); canary Service is `packmate-backend-canary`.
 - Canary steps: 10% → smoke analysis → pause → 50% → smoke analysis → pause → 100%.
 - Optional `AnalysisTemplate/packmate-backend-prometheus` is shipped but not wired into default steps.
-- `scripts/canary-demo.sh` wraps promote/pause/resume/abort/retry/rollback for demos — does not apply manifests.
+- `scripts/canary-demo.sh` supports the optional canary demonstration and does not apply participant runtime overlays.
 
 ## Phase 11 — Security
 

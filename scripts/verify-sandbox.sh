@@ -9,6 +9,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "${ROOT}/scripts/lib/sandbox-common.sh"
 
 packmate_require_oc
+packmate_require_human_user || exit 1
 if [[ -f "${ROOT}/config/sandbox.env" ]]; then
   packmate_load_config "${ROOT}" || exit 1
 else
@@ -32,11 +33,14 @@ printf '=== Packmate verify (%s) ===\n' "${PACKMATE_NAMESPACE}"
 if [[ -d "${ROOT}/.git" ]]; then
   pass "Workbench repository is a valid Git clone"
   BR="$(git -C "${ROOT}" branch --show-current 2>/dev/null || true)"
-  [[ "${BR}" == "packmate-v2" ]] && pass "Repository branch is packmate-v2" \
-    || fail "Repository branch is packmate-v2 (got '${BR:-detached}')"
+  EXPECTED_BRANCH="${GIT_REVISION:-packmate-v2}"
+  EXPECTED_BASE="${PROMOTION_BASE_BRANCH:-${EXPECTED_BRANCH}}"
+  [[ "${BR}" == "${EXPECTED_BRANCH}" && "${EXPECTED_BRANCH}" == "${EXPECTED_BASE}" ]] \
+    && pass "Repository branch matches GitOps/promotion settings (${BR})" \
+    || fail "Repository branch/settings disagree (current=${BR:-detached} revision=${EXPECTED_BRANCH} base=${EXPECTED_BASE})"
 else
   fail "Workbench repository is a valid Git clone"
-  fail "Repository branch is packmate-v2"
+  fail "Repository branch matches configured workshop revision"
 fi
 
 # DSP labels (best-effort)

@@ -15,15 +15,31 @@ pass() { printf 'PASS  %s\n' "$*"; }
 grep -q "${OBSOLETE_PY}" "${TPL}" && die "Template contains obsolete Python digest"
 grep -q "${OBSOLETE_CLI}" "${TPL}" && die "Template contains obsolete CLI digest"
 grep -q '__PACKMATE_PIPELINE_PYTHON_IMAGE__' "${TPL}" || die "Template missing Python placeholder"
+for placeholder in \
+  __PACKMATE_GIT_REPO_URL__ __PACKMATE_GIT_REVISION__ \
+  __PACKMATE_PROMOTION_REGISTRY__ __PACKMATE_PROMOTION_REGISTRY_OWNER__ \
+  __PACKMATE_PROMOTION_IMAGE_NAME__; do
+  grep -q "${placeholder}" "${TPL}" || die "Template missing ${placeholder}"
+done
 pass "Pipeline template OK"
 
 if [[ ! -f "${OUT}" ]]; then
-  PACKMATE_SKIP_PYTHON_IMAGE_PULL_PROBE="${PACKMATE_SKIP_PYTHON_IMAGE_PULL_PROBE:-true}" \
-    bash "${ROOT}/scripts/render-packmate-pipeline.sh" >/dev/null
+  if command -v oc >/dev/null 2>&1 && oc whoami >/dev/null 2>&1; then
+    PACKMATE_SKIP_PYTHON_IMAGE_PULL_PROBE="${PACKMATE_SKIP_PYTHON_IMAGE_PULL_PROBE:-true}" \
+      bash "${ROOT}/scripts/render-packmate-pipeline.sh" >/dev/null
+  else
+    # Offline validation uses syntactically valid non-pullable examples. Bootstrap
+    # always overwrites this generated file with live cluster digests.
+    PACKMATE_PIPELINE_PYTHON_IMAGE='registry.example.invalid/openshift/python@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' \
+    PACKMATE_PIPELINE_CLI_IMAGE='registry.example.invalid/openshift/cli@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' \
+    PACKMATE_SKIP_PYTHON_IMAGE_PULL_PROBE=true \
+      bash "${ROOT}/scripts/render-packmate-pipeline.sh" >/dev/null
+  fi
 fi
 [[ -f "${OUT}" ]] || die "Rendered Pipeline missing: ${OUT}"
 grep -q '__PACKMATE_PIPELINE_PYTHON_IMAGE__' "${OUT}" && die "Unresolved Python placeholder in ${OUT}"
 grep -q '__PACKMATE_PIPELINE_CLI_IMAGE__' "${OUT}" && die "Unresolved CLI placeholder in ${OUT}"
+grep -q '__PACKMATE_' "${OUT}" && die "Unresolved participant placeholder in ${OUT}"
 grep -q "${OBSOLETE_PY}" "${OUT}" && die "Obsolete Python digest in rendered file"
 grep -qE '^\s+image:.*:latest([[:space:]]|$)' "${OUT}" && die ":latest image in rendered Pipeline"
 pass "Rendered Pipeline file OK (${OUT})"

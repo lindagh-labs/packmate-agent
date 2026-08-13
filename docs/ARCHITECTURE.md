@@ -5,7 +5,7 @@
 | Layer | Role |
 |-------|------|
 | Canonical upstream | `Lindagh1/packmate-agent` @ `packmate-v2` / `lab-v2.0.0` — immutable workshop source |
-| Participant fork | Writable Git history for Pipeline clones, promotion PRs, rollback PRs |
+| Participant fork | Writable Git history for Pipeline clones and promotion PRs |
 | Argo CD | `Application/packmate-lab` and `Application/packmate-prod` use `GIT_REPO_URL` + `GIT_REVISION` from the fork |
 | Release policy | New `lab-v2.x` only when the workshop itself changes — not per demo |
 | Pre-bootstrap check | `make verify-demo-fork` — Argo upstream residue is INFO until bootstrap migrates |
@@ -14,7 +14,7 @@
 
 Validated technical workflow:
 
-**Playground → DEV → Tekton → durable GHCR candidate → PR in fork → Argo CD manual PROD Sync → PROD → rollback PR in fork**
+**Playground → DEV → Tekton → durable GHCR candidate → PR in fork → Argo CD manual PROD Sync → verified PROD**
 
 ## Lab pedagogy (150 minutes, DEV → PROD)
 
@@ -29,7 +29,7 @@ Two namespaces on the same cluster:
 |-------|----------|
 | Participant ClickOps | Data Science Project (DEV), Workbench, AI asset endpoints, Playground, Pipeline Start, promotion PR review/merge, Argo Sync (PROD) |
 | `make bootstrap` | Prerequisites only for Git-tracked runtime: Secrets (idempotent), custom model endpoint, MCP registration, Tekton Pipeline, AppProject/Applications. **Argo CD Application `packmate-lab` reconciles `deploy/overlays/dev`**. Also **prepares** PROD (namespace, Secret, image-pull RBAC, Applications) without deploying or syncing PROD workloads |
-| `scripts/promote-backend-image.sh` | Reads a Succeeded PipelineRun + PASS quality gate in DEV, edits **only** the backend digest in `deploy/overlays/prod/kustomization.yaml`, opens a pull request — never applies to the cluster. Exits early with `BLOCKED_NO_PROMOTION_DIFF` when PROD already equals the candidate. |
+| `make promote PIPELINERUN=<name>` | Reads a Succeeded PipelineRun + PASS quality gate in DEV, edits **only** the backend digest in `deploy/overlays/prod/kustomization.yaml`, opens a pull request — never applies to the cluster. Exits early with `BLOCKED_NO_PROMOTION_DIFF` when PROD already equals the candidate. |
 | `scripts/verify-demo-baseline.sh` / `prepare-demo-baseline.sh` | Read-only check / fork-only demo PROD baseline reset so repeated demos always have a promotion diff |
 | Argo CD | Application `packmate-lab` (automated, prune off, selfHeal off) owns DEV runtime; Application `packmate-prod` (manual Sync, prune off, selfHeal off) is the **only** thing that deploys to PROD |
 | Platform prerequisites | OpenShift AI, Pipelines, OpenShift GitOps, shared Llama in `my-first-model`, prebuilt images |
@@ -123,13 +123,11 @@ SSE never streams: model chain-of-thought, `<think>` tags, medical notes, raw to
 flowchart LR
   Start[Participant: Start Pipeline] --> Tekton[Tekton packmate-ci: clone, test, ai-quality-gate, validate-manifests, build-backend]
   Tekton -->|"PASS + digest"| Candidate[Candidate backend digest in packmate-lab ImageStream]
-  Candidate --> Promote[scripts/promote-backend-image.sh --create-pr]
+  Candidate --> Promote[make promote with PipelineRun evidence]
   Promote --> PR[Pull request: deploy/overlays/prod/kustomization.yaml only]
   PR -->|human review + merge| Git[packmate-v2]
   Git --> ArgoProd[Argo CD Application packmate-prod: OutOfSync]
   ArgoProd -->|manual Sync, prune=false, selfHeal=false| Prod[packmate-prod workloads]
-  Prod -.->|bad promotion| Rollback[scripts/rollback-prod-image.sh --create-pr]
-  Rollback --> PR
 ```
 
 The Pipeline **never** deploys to `packmate-prod` (guarded by `validate-manifests`, which fails the run on any `oc apply … packmate-prod` / `oc set image` / `argocd sync` string in `.tekton/lab/`). Argo CD Sync is the only path that changes PROD Deployments. MCP servers version via Deployment image digests in each overlay (not Rollouts by default); an optional canary annex for the backend Deployment exists under `deploy/overlays/prod-canary-annex/` and is not part of the graded path.

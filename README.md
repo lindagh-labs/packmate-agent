@@ -1,153 +1,130 @@
-# Packmate v2
+# Packmate Agent
 
-AI-powered travel packing assistant for an **OpenShift AI DEV → PROD workshop** (~150 minutes): prototype in the Gen AI Playground, run it as a FastAPI + React app in **DEV** (`packmate-lab`), validate it with a Tekton Pipeline, **promote** it to **PROD** (`packmate-prod`) through a reviewed pull request **in your fork**, and deploy it with Argo CD.
+Packmate is an AI travel assistant and a beginner Red Hat Demo Platform workshop. Participants prototype with a shared Llama model and MCP tools in OpenShift AI, validate the integrated React/FastAPI application in DEV, run an AI-aware Tekton Pipeline, publish an immutable GHCR candidate, promote its digest through a reviewed pull request, and manually synchronize PROD with Argo CD.
 
-## Fork-first workshop model
+The standard learning path is:
 
-- **Canonical upstream:** `https://github.com/Lindagh1/packmate-agent` (branch `packmate-v2`, release `lab-v2.0.0`) — immutable workshop source.
-- **Every workshop execution** happens in a **participant or demo fork**. Argo CD Applications watch the fork (`GIT_REPO_URL`), not canonical upstream.
-- Promotion and rollback PRs are **fork branch → fork `packmate-v2`** (or a dedicated demo branch). They never merge into Lindagh1/packmate-agent.
-- Demonstrations do **not** create `lab-v2.x` tags or GitHub Releases. Reuse the canonical release across demos.
+**RHDP sandbox → OpenShift AI project and Workbench → Playground → DEV → Tekton → GHCR digest → pull request → manual Argo CD Sync → verified PROD**
 
-**Repeatable demos (instructors):** keep three distinct concepts:
+## Workshop safety model
 
-| Concept | Meaning |
-|---------|---------|
-| Workshop release | Immutable `lab-v2.0.0` on Lindagh1 — never modified by demos |
-| Demo PROD baseline | Known-good previous digest in the **fork** (prefer branch `demo/sandbox2571`) |
-| Pipeline candidate | Digest from the current Succeeded PipelineRun — must differ from the baseline before Module D |
+- `Lindagh1/packmate-agent` is the read-only canonical source.
+- Every participant works in a GitHub fork.
+- `make configure-participant` derives local settings from fork remote `origin` and disables pushes to canonical `upstream`.
+- GitHub and GHCR credentials never belong in `config/sandbox.env`, scripts, documentation, or Git history.
+- Argo CD owns all Git-tracked DEV and PROD runtime resources.
+- DEV may reconcile automatically; PROD always requires a manual Sync.
+- The Pipeline validates and publishes but never deploys PROD.
+- Production promotion changes only the backend image `newName` and immutable `digest` in `deploy/overlays/prod/kustomization.yaml`.
 
-Default strategy is **Mode B**: disposable `demo/sandbox2571` in the fork (`GIT_REVISION` / `PROMOTION_BASE_BRANCH`). Mode A (`packmate-v2` on the fork) is supported when explicitly configured.
+## Environments
+
+| Environment | Namespace | Contents | Delivery behavior |
+|---|---|---|---|
+| DEV | `packmate-lab` | OpenShift AI project, Workbench, Playground assets, Tekton, React/FastAPI, MCP | Argo CD reconciles automatically |
+| PROD | `packmate-prod` | Runtime React/FastAPI and MCP services only | Argo CD manual Sync only |
+
+The shared `llama-32-3b-instruct` model remains in `my-first-model`; the workshop does not deploy another model.
+
+## Participant quick start
+
+After creating `packmate-lab` and cloning the participant fork into the Workbench:
 
 ```bash
-# 1) Fork Lindagh1/packmate-agent on GitHub, then:
-git clone --branch packmate-v2 \
-  https://github.com/YOUR_GITHUB_USERNAME/packmate-agent.git
-cd packmate-agent
-git remote add upstream https://github.com/Lindagh1/packmate-agent.git
-cp config/sandbox.env.example config/sandbox.env
-# set GIT_REPO_URL to your fork URL, plus digest-pinned *_IMAGE and LLM_* values
+make configure-participant
+make configure-git \
+  PACKMATE_GIT_NAME='Your Name' \
+  PACKMATE_GIT_EMAIL='you@example.com'
 make verify-demo-fork
+make prepare-demo-baseline
+make configure-promotion-registry
+make verify-promotion-registry
+make preflight
+make bootstrap
+make verify-dev
+make verify-gitops
 ```
 
-## Release status
+The detailed participant sequence, UI steps, checkpoints, evidence, and recovery actions are in [`docs/PARTICIPANT_GUIDE.md`](docs/PARTICIPANT_GUIDE.md).
 
-- Tag: **`lab-v2.0.0`** (canonical reusable workshop baseline)
-- Images: public GHCR digests (see `docs/REPRODUCE_SANDBOX.md`)
-- Quality gate: **0.9559**
-- Validated PipelineRun + GitOps on OpenTLC sandbox (DEV path; see docs for the DEV/PROD split status)
+## Core commands
 
-## DEV → PROD narrative
+```bash
+make help
+make configure-participant
+make verify-demo-fork
+make verify-github-write-readiness
+make prepare-demo-baseline
+make configure-promotion-registry
+make preflight
+make bootstrap
+make verify-dev
+make verify-gitops
+make diagnose-latest-pipelinerun
+make promote PIPELINERUN=<pipelinerun-name>
+make verify-prod
+```
 
-1. **DEV** (`packmate-lab`): create a Data Science Project + Workbench, `make bootstrap`, prototype in the Gen AI Playground (model + system prompt + MCP), then use the same idea industrialized on the DEV Route.
-2. **CI**: start Pipeline `packmate-ci` (tests → AI quality gate ≥0.90 → build backend). It only ever validates and builds in `packmate-lab` — it never deploys anywhere.
-3. **Promote**: `scripts/promote-backend-image.sh --create-pr` turns a PASSing candidate digest into a pull request **in your fork** that touches only `deploy/overlays/prod/kustomization.yaml`. Review it, then merge in the fork. If PROD already pins the same digest as the Pipeline candidate, promotion is blocked with `BLOCKED_NO_PROMOTION_DIFF` — instructors prepare a disposable demo baseline first (`make verify-demo-baseline` / `make prepare-demo-baseline`).
-4. **PROD** (`packmate-prod`): merging makes Argo CD Application `packmate-prod` **OutOfSync**. Sync it manually (OpenShift SSO, Prune disabled) to deploy. `packmate-prod` has no Workbench, Pipeline, Playground, or custom model endpoint — runtime only.
-5. **Rollback**: `scripts/rollback-prod-image.sh --create-pr` opens a pull request in the fork restoring the previous digest — no rebuild, no direct cluster edit.
-
-`packmate-lab` is **DEV**. It is never production. Every change that reaches `packmate-prod` goes through Git (pull request in the fork), never a direct `oc apply`.
-
-Guides: [`docs/PARTICIPANT_GUIDE.md`](docs/PARTICIPANT_GUIDE.md) (Modules A–F) · [`docs/INSTRUCTOR_GUIDE.md`](docs/INSTRUCTOR_GUIDE.md) · [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) · [`docs/REPRODUCE_SANDBOX.md`](docs/REPRODUCE_SANDBOX.md) · [`docs/OPERATIONS.md`](docs/OPERATIONS.md) · [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md) · Word assembly: [`docs/DOCX_ASSEMBLY_PLAN.md`](docs/DOCX_ASSEMBLY_PLAN.md)
+All participant commands are intended to fail safely with a direct recovery action. Live cluster commands also reject `system:serviceaccount:...` identities where a human sandbox identity is required.
 
 ## Architecture
 
 ```mermaid
-flowchart TB
-  subgraph dev [DEV — packmate-lab]
-    DSP[Data Science Project]
-    WB[Workbench code-server]
-    PG[Gen AI Playground]
-    PipeUI[Pipeline packmate-ci]
-    AppDev[Backend + Frontend + MCP]
-  end
-  subgraph promo [Promotion — Git]
-    PR[Pull request: prod overlay digest only]
-  end
-  subgraph prod [PROD — packmate-prod]
-    ArgoUI[Argo CD Sync]
-    AppProd[Backend + Frontend + MCP]
-  end
-  subgraph platform [Platform prerequisites]
-    OAI[OpenShift AI]
-    Model[llama-32-3b-instruct in my-first-model]
-    Img[Prebuilt images GHCR/Quay]
-  end
-  DSP --> WB --> AppDev
-  Model --> PG
-  Model --> AppDev
-  Model --> AppProd
-  Img --> AppDev
-  Img --> AppProd
-  PipeUI -->|"PASS quality gate"| PR
-  PR -->|merge| ArgoUI
-  ArgoUI -->|Sync, prune off| AppProd
+flowchart LR
+  Model[Shared Llama model] --> PG[OpenShift AI Playground]
+  MCP[Weather + Baggage MCP] --> PG
+  PG --> Dev[React + FastAPI DEV]
+  Dev --> CI[Tekton tests + AI gate ≥ 0.90]
+  CI --> GHCR[GHCR candidate @sha256]
+  GHCR --> PR[Reviewed fork pull request]
+  PR --> Argo[Manual Argo CD PROD Sync]
+  Argo --> Prod[Verified PROD]
 ```
 
-**Playground** = model + system prompt + MCP, in DEV only.
-**FastAPI app** = same idea with validation, MCP cache, bounded LLM retry, SSE streaming, metrics, NetworkPolicies — running in DEV and, once promoted, in PROD.
+## Generated participant guide
 
-## Makefile
+The Markdown source is canonical. Generate the styled deliverables locally with:
 
 ```bash
-cp config/sandbox.env.example config/sandbox.env
-# set GIT_REPO_URL to YOUR fork; digest-pinned *_IMAGE and LLM_* from instructor
-# Workbench: clone the fork into /opt/app-root/src/packmate-agent (never treat /opt/app-root/src as the repo)
-make verify-demo-fork       # Pre-bootstrap: origin/GIT_REPO_URL must be a fork (Argo INFO only)
-make verify-github-write-readiness  # Read vs write GitHub access; detects VS Code askpass issues
-make verify-demo-baseline           # Read-only: PROD digest vs Pipeline candidate (no silent Git edits)
-make prepare-demo-baseline          # Instructor: reset disposable fork/demo PROD baseline (needs CONFIRM_…)
-make setup-workbench-repository   # optional safe clone/update helper (requires fork URL)
-make configure-git                # optional; PACKMATE_GIT_NAME / PACKMATE_GIT_EMAIL
-make preflight              # cluster + repo + image + RHOAI mirror checks
-make bootstrap              # Prerequisites + Argo CD reconciles DEV; PROD prep only
-make verify / verify-dev    # DEV readiness (incl. Python digest + deps)
-make verify-python-deps     # in-cluster install against the RHOAI 3.4 mirror
-make resolve-pipeline-python-image  # print current openshift/python:3.12-ubi9 digest ref
-make render-pipeline        # render to .generated/tekton/packmate-ci.yaml (gitignored)
-make validate-pipeline      # dry-run validate rendered Pipeline
-make prepare-prod           # re-run PROD prep standalone (idempotent)
-make configure-argocd-rbac  # SSO group + AppProject promoter role
-make verify-resource-ownership  # Fail on DEV/PROD dual ownership
-make rotate-prod-llm-secret # Instructor-only LLM Secret rotation
-make verify-prod            # PROD readiness after an Argo CD Sync
-make verify-gitops          # AppProject/Application/RBAC checks
-make validate-prod          # static PROD overlay checks (offline)
-make test                   # unit tests + quality gate + security-check
-make render                 # render Kustomize DEV + PROD overlays
-make promote                # scripts/promote-backend-image.sh (see --help)
-make cleanup                # interactive, DEV (packmate-lab) only
+make guide
 ```
 
-### Portable Pipeline Python image
+Outputs:
 
-Do **not** commit sandbox-specific `openshift/python@sha256:…` digests. `make bootstrap` resolves `openshift/python:3.12-ubi9` on the current cluster, renders `.tekton/lab/packmate-ci.yaml.tpl` into `.generated/tekton/packmate-ci.yaml`, and applies that generated YAML. Critical Python packages (`mcp==1.27.2`, `json-repair==0.25.3`, `pydantic==2.13.1`) are pinned to versions available on the RHOAI 3.4 package mirror — participants never edit requirements or Tekton YAML by hand.
+- `docs/generated/Packmate_Participant_Guide.html`
+- `docs/generated/Packmate_Participant_Guide.docx`
+- `docs/generated/Packmate_Participant_Guide.pdf`
 
-## Local development (optional)
+Generation preserves the Red Hat-inspired white/black/red visual language, callout colors, dark terminal blocks, page breaks, tables, and locally approved screenshots. The guide reuses 14 verified, cropped screenshots from the prior participant DOCX and keeps 13 specifically named placeholders for evidence that requires a current sandbox. No screenshot is fabricated; see [`docs/SCREENSHOT_REUSE_AUDIT.md`](docs/SCREENSHOT_REUSE_AUDIT.md).
+
+## Local validation
 
 ```bash
-cd backend && python -m venv .venv && source .venv/bin/activate
-pip install -r requirements-dev.txt && pytest -q
-cd ../frontend && npm ci && npm run test -- --run
+make acceptance-static
+make validate-prod
+make validate-pipeline
+make security-check
+make test
 ```
 
-## Important constraints
+`make test` installs project dependencies from the configured Red Hat OpenShift AI package mirror and runs backend, frontend, MCP, quality-gate, security, and script suites. Cluster-facing acceptance requires a live RHDP sandbox and cannot be claimed by local tests.
 
-- Do **not** redeploy the shared Llama model, in DEV or PROD
-- Do **not** commit Secrets or `config/sandbox.env`
-- Do **not** use image tag `latest`
-- Do **not** `oc apply -k deploy/overlays/dev` or `deploy/overlays/prod` — Argo CD owns Git-tracked runtime resources
-- Do **not** `oc apply -k deploy/overlays/prod` directly — Argo CD Sync only
-- Ordinary `make bootstrap` never rotates Secrets; use `ROTATE_PACKMATE_PROD_LLM_SECRET=true make rotate-prod-llm-secret` when intentional
-- A bootstrap rerun must leave `packmate-lab` Synced/Healthy and must not bump Secret resourceVersions when data is unchanged
-- Do **not** push promotion/rollback branches straight to `packmate-v2` — pull request only
-- Do **not** promote into Lindagh1/packmate-agent — use a fork (`make verify-demo-fork` before bootstrap; `make verify-demo-fork-live` after)
-- Do **not** create a `lab-v2.x` tag or GitHub Release per demonstration
-- After deleting projects, run `make discover-packmate-resources` — Applications/AppProject/group may remain; dry-run `make reset-lab` before a clean room
-- GitOps / Rollouts / EvalHub are required for the PROD modules; Rollouts / EvalHub stay optional extensions
+## Additional maintainers' documentation
 
-## License
+- [`docs/INSTRUCTOR_GUIDE.md`](docs/INSTRUCTOR_GUIDE.md)
+- [`docs/INSTRUCTOR_SETUP_CHECKLIST.md`](docs/INSTRUCTOR_SETUP_CHECKLIST.md)
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
+- [`docs/REPRODUCE_SANDBOX.md`](docs/REPRODUCE_SANDBOX.md)
+- [`docs/OPERATIONS.md`](docs/OPERATIONS.md)
+- [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md)
+- [`docs/DOCX_ASSEMBLY_PLAN.md`](docs/DOCX_ASSEMBLY_PLAN.md)
 
-See repository license file.
-## OpenShift GitOps (instructor)
+## Non-negotiable constraints
 
-Install official Red Hat OpenShift GitOps, then run `INSTALL_OPENSHIFT_GITOPS_OPERATOR=true make instructor-setup`. The Argo CD dashboard must show **packmate-lab** and **packmate-prod** under AppProject `packmate`. Participants use **Log in via OpenShift** only. PROD images must be durable GHCR digests — never OpenShift internal-registry digests from another sandbox.
+- Never commit Secrets, tokens, `config/sandbox.env`, or generated cluster credentials.
+- Never use `:latest` for a promoted image.
+- Never directly apply `deploy/overlays/dev` or `deploy/overlays/prod`.
+- Never use `oc set image` or patch a Git-managed PROD Deployment.
+- Never let the Pipeline synchronize PROD.
+- Never promote into the canonical repository.
+- Never enable automatic PROD synchronization.

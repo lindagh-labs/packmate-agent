@@ -5,8 +5,8 @@ Use before each Packmate v2 (DEV → PROD) session.
 ## Operators and platform
 
 - [ ] OpenShift AI 3.4.x Ready (`rhods-operator`)
-- [ ] OpenShift Pipelines installed (Module C)
-- [ ] OpenShift GitOps installed (Modules D–F) — else those modules are screenshot-only
+- [ ] OpenShift Pipelines installed (Module 7)
+- [ ] OpenShift GitOps installed (required for Modules 4, 8, and 9)
 - [ ] GPU / model serving healthy for `llama-32-3b-instruct`
 - [ ] User can create Data Science Projects and Workbenches (DEV only)
 
@@ -45,9 +45,9 @@ Use before each Packmate v2 (DEV → PROD) session.
 - [ ] `oc -n openshift-gitops get appproject packmate` and `oc -n openshift-gitops get application packmate-prod` exist; `make verify-gitops` passes
 - [ ] Argo CD `spec.rbac.scopes` includes `groups`; OpenShift group `packmate-lab-users` exists
 - [ ] Decide and document the **fork-first promote path**: each participant forks, sets `GIT_REPO_URL`, runs `make verify-demo-fork`, and merges PRs only in their fork (see `docs/INSTRUCTOR_GUIDE.md`)
-- [ ] `gh auth status` succeeds on the machine/Workbench image participants will use for `scripts/promote-backend-image.sh --create-pr`
+- [ ] `gh auth status` succeeds on the Workbench image participants use for Module 8
 - [ ] `make verify-github-write-readiness` PASS (or documented manual browser/terminal completion)
-- [ ] For instructor re-demos: Mode B `demo/sandbox2571` prepared (`make verify-demo-baseline` PASS vs the intended Pipeline candidate)
+- [ ] `make prepare-demo-baseline` creates `demo/packmate-workshop` and saves matching local config
 - [ ] Argo CD **local admin password never shared**; break-glass retrieval procedure understood (`docs/INSTRUCTOR_GUIDE.md`) and rotated/disabled after class if used
 
 ## Smoke on instructor project
@@ -65,10 +65,9 @@ Use before each Packmate v2 (DEV → PROD) session.
 - [ ] Deployed Pipeline Python image matches `oc get istag python:3.12-ubi9 -n openshift` (no obsolete `ae2c1317…` digest)
 - [ ] `.tekton/lab/packmate-ci.yaml.tpl` is tracked; rendered YAML under `.generated/tekton/` is **not** committed
 - [ ] Participant clone path documented as `/opt/app-root/src/packmate-agent` (never `/opt/app-root/src` as the repo)
-- [ ] `scripts/promote-backend-image.sh --pipelinerun <name> --namespace packmate-lab --create-pr` opens a PR touching only `deploy/overlays/prod/kustomization.yaml`
+- [ ] `make promote PIPELINERUN=<name>` opens a PR touching only `deploy/overlays/prod/kustomization.yaml`
 - [ ] Merge the smoke PR, confirm Argo `packmate-prod` goes OutOfSync, Sync it, confirm Synced/Healthy
 - [ ] `make verify-prod` → OK; PROD Frontend Route serves UI
-- [ ] `scripts/rollback-prod-image.sh --create-pr` opens a rollback PR restoring the previous digest; merge + Sync restores it
 
 ## Day-of
 

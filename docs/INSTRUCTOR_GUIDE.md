@@ -1,6 +1,6 @@
 # Instructor guide — Packmate v2 (OpenShift AI DEV → PROD)
 
-Lab duration for participants: **≈150 minutes** (Modules A–F, see `docs/PARTICIPANT_GUIDE.md`).
+Lab duration for participants: **≈150 minutes** (Modules 1–9, see `docs/PARTICIPANT_GUIDE.md`).
 Your prep: **60–120 minutes** on a ready cluster (longer the first time you publish images or configure PROD RBAC).
 
 ## Fork-first workshop model
@@ -12,13 +12,13 @@ Your prep: **60–120 minutes** on a ready cluster (longer the first time you pu
 | Clone | Participants clone **their fork**, add canonical as `upstream` |
 | Config | `GIT_REPO_URL` = fork; `CANONICAL_GIT_REPO_URL` = Lindagh1/packmate-agent; `ALLOW_CANONICAL_REPO_PROMOTION=false` |
 | Argo CD | Both Applications use `repoURL=GIT_REPO_URL` and `targetRevision=GIT_REVISION` from the fork |
-| Promote / rollback | PR stays inside the fork (`make verify-demo-fork` must PASS) |
+| Promote | PR stays inside the fork (`make verify-demo-fork` must PASS) |
 | Releases | Do **not** create a `lab-v2.x` tag or GitHub Release per demo |
 
 ### Repeated demonstrations
 
 - **Option A:** one disposable fork per participant or team.
-- **Option B:** one fork with a dedicated branch, for example `demo/sandbox2571`, with `GIT_REVISION=demo/sandbox2571` and `PROMOTION_BASE_BRANCH=demo/sandbox2571`.
+- **Option B:** one fork with the disposable `demo/packmate-workshop` branch prepared by `make prepare-demo-baseline`.
 
 To reset a fork branch to the canonical release (rewrites **only the fork**):
 
@@ -37,7 +37,7 @@ Never run a force reset against the canonical upstream repository.
 
 ### Release policy
 
-Create a new `lab-v2.x` tag only when the **canonical workshop itself** changes (bug fix → patch, new capability → minor, incompatible architecture → major). These do **not** create releases: new sandbox, PipelineRun, candidate digest, promotion PR, Argo Sync, participant, fork, or rollback exercise.
+Create a new `lab-v2.x` tag only when the **canonical workshop itself** changes (bug fix → patch, new capability → minor, incompatible architecture → major). New sandboxes, PipelineRuns, candidate digests, promotion PRs, Argo Syncs, participants, and forks do not create releases.
 
 `ALLOW_CANONICAL_REPO_PROMOTION=true` is an instructor-only override. Never enable it in `config/sandbox.env.example` or participant docs.
 
@@ -74,8 +74,8 @@ Never deletes `my-first-model`, Operators, or the shared GitOps instance. Stuck 
 |-----------|-------------------------------|------------|
 | OpenShift AI (`rhods-operator` 3.4.x) | **Required** | Blocks lab if absent |
 | Model `llama-32-3b-instruct` in `my-first-model` | **Required** | Shared; never redeploy for Packmate |
-| OpenShift Pipelines 1.22.x | **Required for Module C** | Warn + screenshots if absent |
-| OpenShift GitOps / Argo CD | **Required for Modules D–F** (validated install on 2026-07-22 sandbox) | `GITOPS_OPERATOR_REQUIRED` if absent |
+| OpenShift Pipelines 1.22.x | **Required for Module 7** | Workshop cannot complete without a live run |
+| OpenShift GitOps / Argo CD | **Required for Modules 4, 8, and 9** | `GITOPS_OPERATOR_REQUIRED` if absent |
 | Argo Rollouts | Optional annex (`deploy/overlays/prod-canary-annex/`) | Not in main path |
 | EvalHub instance | Optional annex | `EVALHUB_OPTIONAL_NOT_CONFIGURED` |
 
@@ -84,8 +84,8 @@ Classification helpers: `make preflight` prints PASS / WARNING / BLOCKED / OPTIO
 ## Operators you install once (cluster admin, outside the 150-minute path)
 
 - **Red Hat OpenShift AI** (`rhods-operator`) — required for DSP, Workbench, Gen AI studio.
-- **OpenShift Pipelines** (`openshift-pipelines-operator-rh`) — required for Module C.
-- **OpenShift GitOps** (`openshift-gitops-operator`) — required for Modules D–F. See `docs/INSTALL_GITOPS_PREREQUISITE.md`. Installs the cluster-scoped Argo CD instance in `openshift-gitops` that both `packmate-lab` (dev demo Application) and `packmate-prod` (real promotion target) use.
+- **OpenShift Pipelines** (`openshift-pipelines-operator-rh`) — required for Module 7.
+- **OpenShift GitOps** (`openshift-gitops-operator`) — required for Modules 4, 8, and 9. See `docs/INSTALL_GITOPS_PREREQUISITE.md`.
 - **Argo Rollouts** — optional, only for the canary annex (`deploy/overlays/prod-canary-annex/`), not part of the graded path.
 
 None of these are installed by Packmate scripts. `make bootstrap` / `make prepare-prod` only fail fast and print the missing-operator message when a CRD is absent.
@@ -107,7 +107,7 @@ Internal OpenShift registry dies with the sandbox. Publish once:
 3. GitHub → Packages → each image → **Change visibility → Public**.
 4. Put refs into the class `config/sandbox.env` template (not in Git).
 
-Bootstrap accepts **Quay or GHCR**; it does not hard-code a registry. Both DEV (`deploy/overlays/dev`) and the initial PROD overlay (`deploy/overlays/prod`) start from the same `lab-v1.0.0` digests; PROD only moves forward via a promotion PR (Module D).
+Bootstrap uses the digest-pinned lab images. The Pipeline publishes the participant candidate to configured GHCR; PROD moves only through the Module 8 promotion PR.
 
 ## Preparing `packmate-prod` (what participants trigger, what you can also run standalone)
 
@@ -147,7 +147,7 @@ Separately, the Argo CD **local admin account** exists for break-glass cluster-a
 2. Creates OpenShift **Group** `packmate-lab-users` (override with `PACKMATE_ARGO_GROUP`) and adds the participant (`oc whoami`, override with `PACKMATE_PARTICIPANT_USER`).
 3. Re-applies `argocd/appproject-packmate.yaml`, which defines role **`promoter`**: `get` + `sync` on `Application/packmate-prod` only, for group `packmate-lab-users` — no `role:admin`, no delete permission, no other destination.
 
-**Participants must log out and log back in to the Argo CD UI** after being added to the group — Argo CD reads OpenShift group membership from the OAuth token at login time, and RBAC changes may also need `oc rollout restart deployment/<argocd-name>-server -n openshift-gitops` to pick up scope changes. This is called out in Participant Guide Module E.1 and in `docs/TROUBLESHOOTING.md`.
+**Participants must log out and log back in to the Argo CD UI** after being added to the group — Argo CD reads OpenShift group membership from the OAuth token at login time, and RBAC changes may also need `oc rollout restart deployment/<argocd-name>-server -n openshift-gitops` to pick up scope changes. This is called out in Participant Guide Module 9 and in `docs/TROUBLESHOOTING.md`.
 
 Verify the whole PROD/GitOps setup with:
 
@@ -158,12 +158,12 @@ make verify-prod    # after a Sync
 
 ## GitHub write access for the promotion pull request
 
-`scripts/promote-backend-image.sh --create-pr` and `scripts/rollback-prod-image.sh --create-pr` push a branch to `origin` (the **fork**) and call `gh pr create --repo <fork> --base PROMOTION_BASE_BRANCH`. This requires:
+`make promote PIPELINERUN=<name>` pushes a branch to `origin` (the **fork**) and calls `gh pr create --repo <fork> --base PROMOTION_BASE_BRANCH`. This requires:
 
 - `origin` and `GIT_REPO_URL` pointing at the fork (`make verify-demo-fork` PASS);
 - `gh auth login` completed with a token that has **write access to the fork**;
 - if `gh` is not authenticated, the scripts fall back to printing the manual `git push` + compare-URL instructions — nothing is lost, the commit stays local until pushed.
-- `--merge-pr` is an **automated-validation-only** flag (documented in the script header); do not enable it for participant-facing sessions — merges should go through human review (Participant Guide Module D.2).
+- `--merge-pr` is an **automated-validation-only** implementation flag; do not enable it for participant-facing sessions — merges go through human review in Module 8.
 
 Promotion into `Lindagh1/packmate-agent` exits with `BLOCKED_CANONICAL_REPOSITORY_PROMOTION` unless `ALLOW_CANONICAL_REPO_PROMOTION=true` (instructor-only).
 
@@ -177,21 +177,14 @@ Keep three layers separate:
 2. **Demo PROD baseline** — previous known-good digest, **only** in the participant/demo fork.
 3. **Pipeline candidate** — digest from the current Succeeded PipelineRun.
 
-**Default branch strategy (Mode B):** disposable `demo/sandbox2571` in the fork.
+**Default branch strategy (Mode B):** disposable `demo/packmate-workshop` in the fork.
 
 ```bash
 # In the fork clone (origin = fork, never Lindagh1):
-# config/sandbox.env:
-#   GIT_REPO_URL=https://github.com/<fork-owner>/packmate-agent.git
-#   GIT_REVISION=demo/sandbox2571
-#   PROMOTION_BASE_BRANCH=demo/sandbox2571
-#   DEMO_BASELINE_MODE=demo-branch
-#   PACKMATE_DEMO_BRANCH=demo/sandbox2571
-#   PACKMATE_DEMO_BASELINE_DIGEST=sha256:03beee2d…   # lab-v2.0.0; do not invent
-
-make verify-demo-baseline
-CONFIRM_DEMO_BASELINE_RESET=participant-fork-only make prepare-demo-baseline
-# Then re-point Argo (make bootstrap / prepare-prod) so Applications follow demo/sandbox2571
+make configure-participant
+make prepare-demo-baseline
+make verify-demo-fork
+# Branch, GIT_REVISION, PROMOTION_BASE_BRANCH, and PACKMATE_DEMO_BRANCH now agree.
 ```
 
 **Mode A** (`DEMO_BASELINE_MODE=fork-packmate-v2`) updates fork `packmate-v2` explicitly. Prefer Mode B so fork `packmate-v2` can stay a clean mirror of canonical.
@@ -220,14 +213,14 @@ If you instead run **many participants against a single shared cluster**, be awa
   1. **One sandbox + one fork per participant** (no changes needed) — the supported/validated path.
   2. **One shared cluster, single shared PROD** — only the instructor (or one nominated participant) Syncs to `packmate-prod`; everyone else reviews PRs in their own forks. Simple, matches the "one production" story, no manifest changes.
   3. **One shared cluster, per-participant PROD** — duplicate `argocd/appproject-packmate.yaml` / `argocd/application-packmate-prod.yaml` per participant with unique names/namespaces/groups before applying. More setup work; only do this for small advanced cohorts.
-- For the **GitHub** side: **always** use participant forks. Do **not** instruct participants to open PRs into `Lindagh1/packmate-agent`. Branch protection on each fork's `packmate-v2` (require PR review, no direct pushes) is recommended so Module D's review step is enforced.
+- For the **GitHub** side: **always** use participant forks. Do **not** instruct participants to open PRs into `Lindagh1/packmate-agent`. Branch protection on each fork's prepared branch is recommended so Module 8 review is enforced.
 
 ## Same-repo vs separate GitOps repo
 
-Packmate currently ships **manifests and application code in the same repository** (`deploy/`, `argocd/` next to `backend/`, `frontend/`, `mcp-servers/`). This is what `scripts/promote-backend-image.sh` and `scripts/rollback-prod-image.sh` assume (`PROMOTION_BASE_BRANCH` / `packmate-v2`, edits under `deploy/overlays/prod/`).
+Packmate currently ships **manifests and application code in the same repository** (`deploy/`, `argocd/` next to `backend/`, `frontend/`, `mcp-servers/`). Promotion uses `PROMOTION_BASE_BRANCH` and edits only the PROD backend image under `deploy/overlays/prod/`.
 
 - **Keep it same-repo (current, recommended for this lab):** simpler for a 150-minute session — one clone, one branch, one PR review teaches the whole DEV→PROD story without introducing a second repository, second set of credentials, or a cross-repo Tekton/Argo wiring step. Promotion PRs are easy to correlate with the PipelineRun that produced them.
-- **Split into a separate GitOps repo** (`deploy/` + `argocd/` in their own repo, application code in another): more realistic for teams that want to gate deploy-time changes with different reviewers/CI than app-code changes, and it lets Argo CD's `sourceRepos` allowlist be narrower. If you adopt this for a follow-on course, plan to: change `argocd/*.yaml` `repoURL` to the GitOps repo, update `promote-backend-image.sh` / `rollback-prod-image.sh` to commit/push into that second repo (today they always edit the current checkout), and give participants write access to the GitOps repo instead of (or in addition to) the app repo. Not required for this lab — call it out as a deliberate simplification if asked.
+- **Split into a separate GitOps repo** (`deploy/` + `argocd/` in their own repo, application code in another): more realistic for teams that want separate deploy-time reviewers. A follow-on course would need different Argo source URLs and promotion automation. This is intentionally outside the beginner workshop.
 
 ## `CREATE_PROD_*` and related flags
 
@@ -243,18 +236,17 @@ Set in `config/sandbox.env` (or exported before `make bootstrap` / `make prepare
 | `ARGOCD_RBAC_FALLBACK` | `false` | Instructor-only: allow the `edit`-role RoleBinding fallback in step 5/6 of `prepare-prod.sh` |
 | `DISABLE_ARGOCD_LOCAL_ADMIN` | `false` | Instructor-only: disable the Argo CD local admin account once SSO RBAC works |
 
-Set all four `CREATE_PROD_*`/`CREATE_ARGOCD_*` flags to `false` if you want a class session that **only** exercises DEV (Modules A–C) and skips PROD prep entirely — Modules D–F then require you to run `make prepare-prod` manually before that part of the day.
+Set all four `CREATE_PROD_*`/`CREATE_ARGOCD_*` flags to `false` only for a deliberately DEV-only class. The standard Modules 1–9 path keeps these enabled.
 
 ## What participants must ClickOps
 
 - Create Data Science Project (`packmate-lab`, **DEV**)
 - Create code-server Workbench
-- Clone repo → `make preflight` / `make bootstrap` / `make verify`
+- Clone repo → `make configure-participant` → `make prepare-demo-baseline` → registry setup → bootstrap
 - Playground in **Packmate Lab** (select model + enable MCP + paste system prompt + test)
 - Start Pipeline `packmate-ci`, capture the candidate digest
-- Run `promote-backend-image.sh --create-pr`, review, merge
+- Run `make promote PIPELINERUN=<name>`, review, merge
 - Argo CD Sync of `packmate-prod` (SSO login/re-login, click Sync)
-- (Module F) Run `rollback-prod-image.sh --create-pr`, review, merge, Sync
 
 Participants must **not** create the custom model endpoint, enter model URLs/tokens, switch to `my-first-model` for the Playground path, or believe `packmate-lab` is production.
 
@@ -278,7 +270,7 @@ Participants must **not** create the custom model endpoint, enter model URLs/tok
 - Use an Argo CD admin password
 - Port-forward for the main path
 - `oc apply -k deploy/overlays/prod` directly (PROD only changes via Argo CD Sync)
-- Push a promotion/rollback branch straight to `packmate-v2` without a PR
+- Push a promotion branch straight to the prepared base branch without a PR
 
 ## Persistent vs ephemeral
 
@@ -288,7 +280,7 @@ Participants must **not** create the custom model endpoint, enter model URLs/tok
 - GitHub Actions workflow `.github/workflows/publish-lab-images.yml`
 - Images on **GHCR or Quay** (digest-pinned)
 - Manifests, system prompt, test prompts, datasets, documentation
-- `deploy/overlays/prod/kustomization.yaml` history — the audit trail of every promotion/rollback
+- `deploy/overlays/prod/kustomization.yaml` history — the audit trail of every promotion
 
 ### EPHEMERAL
 
@@ -306,7 +298,7 @@ Apply via bootstrap (`CREATE_PIPELINE=true`). Bootstrap resolves `openshift/pyth
 
 ## GitOps
 
-If the Operator is missing: share `docs/INSTALL_GITOPS_PREREQUISITE.md` and skip Modules D–F (screenshot walkthrough only).
+If the Operator is missing: share `docs/INSTALL_GITOPS_PREREQUISITE.md` and do not claim completion of the standard production path.
 If present: `packmate-prod` uses **manual sync**, prune off, self-heal off, destination `packmate-prod` only, via AppProject `packmate` role `promoter`.
 
 ## Evaluation
@@ -338,8 +330,8 @@ Fall back to screenshots + local `make test` / Compose. Do not invent "validated
 | Phase | Time |
 |-------|------|
 | Instructor image publish (once) | 30–60 min |
-| Instructor cluster smoke (DEV + PROD prep + one promotion/Sync/rollback cycle) | 45–60 min |
-| Participant lab (Modules A–F) | 150 min |
+| Instructor cluster smoke (DEV + PROD prep + one promotion/Sync cycle) | 45–60 min |
+| Participant lab (Modules 1–9) | 150 min |
 
 ## Participant handout (Word)
 
@@ -347,7 +339,7 @@ Participant Markdown source (Packmate v2 DEV→PROD content):
 
 `docs/PARTICIPANT_GUIDE.md`
 
-Assembly instructions for editors (cover, TOC, captions, page breaks — **no** auto-generated DOCX):
+Generated guide instructions and layout specification:
 
 `docs/DOCX_ASSEMBLY_PLAN.md`
 

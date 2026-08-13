@@ -10,7 +10,7 @@
 | Playground missing Packmate Llama / MCP | Hard-refresh Gen AI studio; `make verify` must PASS asset checks |
 | Health check timed out after 180s | Inspect Route/deploy; bootstrap retries every 5s and accepts only HTTP 200 |
 | Image empty / unreachable | Instructor must publish GHCR/Quay digests into `config/sandbox.env` |
-| `GITOPS_OPERATOR_REQUIRED` | Modules D–F (Promotion/Production/Rollback) screenshot-only — see `docs/INSTALL_GITOPS_PREREQUISITE.md` |
+| `GITOPS_OPERATOR_REQUIRED` | Modules 4, 8, and 9 cannot run live — see `docs/INSTALL_GITOPS_PREREQUISITE.md` |
 | `EVALHUB_OPTIONAL_NOT_CONFIGURED` | Expected unless EvalHub annex is prepared |
 | Unquoted spaces in `sandbox.env` | Quote `PACKMATE_MODEL_DISPLAY_NAME` / `PACKMATE_MODEL_USE_CASE` (see example file) |
 
@@ -60,10 +60,11 @@ git clone --branch packmate-v2 --single-branch \
   https://github.com/YOUR_GITHUB_USERNAME/packmate-agent.git packmate-agent
 cd packmate-agent
 git remote add upstream https://github.com/Lindagh1/packmate-agent.git
+make configure-participant
 make verify-demo-fork
 ```
 
-If promote/rollback prints `BLOCKED_CANONICAL_REPOSITORY_PROMOTION`, fix `origin` / `GIT_REPO_URL` to your fork.
+If promotion prints `BLOCKED_CANONICAL_REPOSITORY_PROMOTION`, fix `origin` with `git remote set-url origin https://github.com/YOUR_USERNAME/packmate-agent.git`, then run `make configure-participant`.
 
 ### BLOCKED_NO_PROMOTION_DIFF / “Nothing to promote”
 
@@ -75,12 +76,9 @@ If promote/rollback prints `BLOCKED_CANONICAL_REPOSITORY_PROMOTION`, fix `origin
 
 ```bash
 make verify-demo-baseline
-# Prefer Mode B demo branch:
-#   GIT_REVISION=demo/sandbox2571
-#   PROMOTION_BASE_BRANCH=demo/sandbox2571
-#   PACKMATE_DEMO_BASELINE_DIGEST=<known-good sha256 from lab history>
-CONFIRM_DEMO_BASELINE_RESET=participant-fork-only make prepare-demo-baseline
-# Re-point Argo Applications to the fork/demo branch, then re-run Module D
+make prepare-demo-baseline
+# The command switches branch and saves matching GitOps/promotion config.
+# Start a new PipelineRun from the prepared branch, then re-run Module 8.
 ```
 
 Do not invent digests. Do not `oc set image`. Do not claim a promotion occurred when digests are identical.
@@ -263,10 +261,10 @@ After recreating backend, restart frontend so Nginx re-resolves `packmate-backen
 
 Prefer forwarding the pod container port 8080 directly.
 
-## Argo CD OutOfSync after a promotion/rollback merge (expected)
+## Argo CD OutOfSync after a promotion merge (expected)
 
-Symptom: Application `packmate-prod` shows **OutOfSync** right after a promotion
-(Module D) or rollback (Module F) pull request is merged.
+Symptom: Application `packmate-prod` shows **OutOfSync** right after the Module 8
+promotion pull request is merged.
 
 This is **expected**, not a fault: merging only changes
 `deploy/overlays/prod/kustomization.yaml` in Git. Nothing in the cluster changes
@@ -532,4 +530,3 @@ Fix: restore the durable GHCR baseline (never `oc set image`). Diagnose:
 ```
 
 Expected: `ROOT_CAUSE=OLD_SANDBOX_REFERENCE`. Promote via external GHCR only.
-

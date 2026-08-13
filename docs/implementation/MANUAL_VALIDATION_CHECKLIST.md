@@ -1,12 +1,12 @@
 # Manual validation checklist — Packmate on OpenShift AI (DEV → PROD)
 
 Status: **MANUAL_REQUIRED** for Workbench UI, Playground session, and the
-Argo CD Sync/pull-request review clicks (Modules D–F). Automated cluster deploy +
+Argo CD Sync/pull-request review clicks (current Modules 8–9). Automated cluster deploy +
 public Route performance are documented in `CLUSTER_DEPLOYMENT_REPORT.md`.
 
-Sections A–N below cover **DEV** (`packmate-lab`, Modules A–B of
+Sections A–N below cover **DEV** (`packmate-lab`, current Modules 2–7 of
 `docs/PARTICIPANT_GUIDE.md`). Section O covers **PROD** (`packmate-prod`,
-Modules C–F: Pipeline, Promotion, Production, Rollback) — added 2026-07-23; see the
+the earlier Pipeline/Promotion/Production split) — added 2026-07-23; see the
 honest-status note in that section before treating it as validated.
 
 Use this checklist with `docs/PARTICIPANT_GUIDE.md`, `WORKBENCH_MANUAL.md`, and
@@ -211,12 +211,12 @@ logs or screenshots.
 | Screenshot | `[Screenshot required: Pipeline successful]`, `[Screenshot required: AI quality gate PASS]`, `[Screenshot required: Candidate image digest]`, `[Screenshot required: Promotion pull request]`, `[Screenshot required: Argo CD OutOfSync]`, `[Screenshot required: Argo CD Synced and Healthy]`, `[Screenshot required: PROD Route]` (all defined in `docs/PARTICIPANT_GUIDE.md`) |
 
 **Honest status (2026-07-23):** the underlying scripts (`prepare-prod.sh`,
-`promote-backend-image.sh`, `rollback-prod-image.sh`, `configure-argocd-lab-rbac.sh`,
+promotion automation, `configure-argocd-lab-rbac.sh`,
 `verify-prod.sh`, `verify-gitops.sh`) exist, are offline-validated
 (`make validate-prod` passes; repository tests pass — see
 `docs/implementation/FINAL_REPORT.md`), and their logic was reviewed line-by-line
 while writing this checklist. A **live-cluster** run of Section O end to end
-(PipelineRun → PR → merge → Sync → PROD Route → rollback PR → merge → Sync) is
+(PipelineRun → PR → merge → Sync → PROD Route) is
 **MANUAL_REQUIRED and not yet performed** in this documentation pass. Do not mark
 this section validated until that live run happens and its evidence is logged in
 `docs/implementation/LAB_ACCEPTANCE_REPORT.md` § 12.
@@ -227,13 +227,13 @@ this section validated until that live run happens and its evidence is logged in
 
 | Check | Status |
 |-------|--------|
-| `make preflight` / `bootstrap` / `verify` | Use after Modules A.2–A.4; bootstrap also prepares (not deploys) `packmate-prod` |
+| `make preflight` / `bootstrap` / `verify` | Use in Module 4; bootstrap also prepares (not deploys) `packmate-prod` |
 | Custom model endpoint | Automated by default (`CREATE_MODEL_CUSTOM_ENDPOINT=true`), DEV only — participants never Create endpoint |
 | Pipeline `packmate-ci` | Start from UI with a 2Gi VolumeClaimTemplate; do not auto-promote backend |
 | `packmate-prod` prep | Automated from bootstrap (`CREATE_PROD_NAMESPACE`/`CREATE_ARGOCD_APPLICATION`/`CREATE_ARGOCD_RBAC`, all default `true`) — namespace/Secret/RBAC/Argo objects only, no workload apply |
-| Promotion / rollback | `scripts/promote-backend-image.sh` / `scripts/rollback-prod-image.sh` — Git pull request only, never a direct cluster edit |
-| Argo CD | Required for Modules D–F — else `GITOPS_OPERATOR_REQUIRED` and those modules are screenshot-only |
-| Screenshots | Placeholders in `PARTICIPANT_GUIDE.md` (Modules A–E, 16 total) |
+| Promotion | `make promote PIPELINERUN=<name>` — Git pull request only, never a direct cluster edit |
+| Argo CD | Required for Modules 4, 8, and 9 — else `GITOPS_OPERATOR_REQUIRED` |
+| Screenshots | Existing placeholders in `PARTICIPANT_GUIDE.md` (Modules 2–9, 16 total) |
 
 ## Sign-off
 
@@ -245,6 +245,5 @@ this section validated until that live run happens and its evidence is logged in
 | Public DEV Route automated performance | See `CLUSTER_DEPLOYMENT_REPORT.md` |
 | PipelineRun validation | `MANUAL_REQUIRED` (UI Start) — do not replace live backend |
 | Argo CD Sync (`packmate-lab` demo Application) | Validated 2026-07-22 (see `FINAL_REPORT.md`) |
-| Promotion PR (Module D) | `MANUAL_REQUIRED` — not yet run on a live cluster in this pass |
-| PROD Sync + Route (Module E) | `MANUAL_REQUIRED` — not yet run on a live cluster in this pass |
-| Rollback PR + Sync (Module F) | `MANUAL_REQUIRED` — not yet run on a live cluster in this pass |
+| Promotion PR (Module 8) | `MANUAL_REQUIRED` — not yet run on a live cluster in this pass |
+| PROD Sync + Route (Module 9) | `MANUAL_REQUIRED` — not yet run on a live cluster in this pass |

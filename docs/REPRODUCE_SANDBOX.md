@@ -4,7 +4,10 @@ Target: a **new ephemeral sandbox** where participants **fork** the canonical re
 ClickOps the DEV Data Science Project + Workbench, then run:
 
 ```bash
+make configure-participant
 make verify-demo-fork
+make prepare-demo-baseline
+make configure-promotion-registry
 make preflight
 make bootstrap
 make verify
@@ -13,8 +16,8 @@ make verify
 ## Fork-first workshop model
 
 - Canonical upstream `Lindagh1/packmate-agent` / release `lab-v2.0.0` is the immutable source.
-- Set `GIT_REPO_URL` to the **fork** URL; Argo CD Applications follow that fork.
-- Promotion and rollback PRs stay in the fork. Do not create a new `lab-v2.x` release per sandbox.
+- `make configure-participant` sets `GIT_REPO_URL` to the **fork** URL; Argo CD Applications follow that fork.
+- Promotion PRs stay in the fork. Do not create a new `lab-v2.x` release per sandbox.
 
 Bootstrap deploys **DEV** (`packmate-lab`) from **prebuilt images** (GHCR/Quay/internal
 digests) and **prepares PROD** (`packmate-prod`) — namespace, Secret, image-pull
@@ -38,7 +41,7 @@ in the fork (promote) → merge in the fork → Argo CD Sync (deploy, PROD)**.
 |-------|----------------|
 | Participant ClickOps | DSP, Workbench, clone, make targets, Playground (select assets, DEV), Pipeline Start (DEV), promotion PR review/merge, Argo Sync (PROD) |
 | Bootstrap automation | Custom endpoints feature, shared-model discovery, MCP, custom model endpoint, backend/frontend, Secrets, Routes, MCP registration, Tekton manifests (DEV) + PROD prep (namespace, Secret, RBAC, Argo manifests, SSO group) |
-| Promotion automation | `scripts/promote-backend-image.sh` (candidate digest → PR) / `scripts/rollback-prod-image.sh` (previous digest → PR) — Git only, never `oc apply` |
+| Promotion automation | `make promote PIPELINERUN=<name>` (candidate digest → PR) — Git only, never `oc apply` |
 | Platform prerequisites | OpenShift AI, Pipelines, OpenShift GitOps, GPU model in `my-first-model` |
 
 ## Persist vs ephemeral
@@ -49,13 +52,11 @@ in the fork (promote) → merge in the fork → Argo CD Sync (deploy, PROD)**.
 ## Configure
 
 ```bash
-cp config/sandbox.env.example config/sandbox.env
-# Set GIT_REPO_URL to your fork (not Lindagh1/packmate-agent).
-# Set digest-pinned *_IMAGE values from the publish-lab-images workflow summary.
-# Set LLM_BASE_URL / LLM_MODEL / LITELLM_API_KEY — reused for both packmate-llm (DEV)
-# and packmate-prod-llm (PROD) Secrets.
-# Never commit config/sandbox.env.
+make configure-participant
 make verify-demo-fork
+make prepare-demo-baseline
+make configure-promotion-registry
+make verify-promotion-registry
 ```
 
 ## Commands
@@ -77,7 +78,7 @@ make verify / verify-dev  # DEV readiness (non-destructive)
 make verify-prod          # PROD readiness after an Argo CD Sync
 make verify-gitops        # AppProject/Application/RBAC checks
 make validate-prod        # Static PROD overlay render checks (offline, no cluster deploy)
-make promote               # scripts/promote-backend-image.sh (see --help)
+make promote PIPELINERUN=<name> # validated candidate → fork promotion PR
 make cleanup                # interactive, DEV (packmate-lab) only
 ```
 
@@ -89,17 +90,15 @@ make cleanup                # interactive, DEV (packmate-lab) only
 4. Create and open the Workbench.
 5. Open a terminal.
 6. Clone **the fork** into `/opt/app-root/src/packmate-agent`; add canonical as `upstream`.
-7. Configure `config/sandbox.env` with `GIT_REPO_URL` = fork URL.
-8. Run `make verify-demo-fork`.
-9. Run `make verify-github-write-readiness` (Module D prep).
-10. Instructor (repeated demos): `make verify-demo-baseline`; if blocked, prepare Mode B baseline on the fork (`CONFIRM_DEMO_BASELINE_RESET=participant-fork-only make prepare-demo-baseline`) so PROD ≠ candidate before Module C/D.
-10. Run `make preflight`.
-11. Run `make bootstrap`.
-12. Run `make verify-dev`.
-13. Run `make verify-demo-fork-live` and `make verify-gitops`.
-14. Start Pipeline `packmate-ci` with VolumeClaimTemplate **2 GiB** (git-url = fork).
-15. Promote via PR **in the fork**; Sync `packmate-prod` manually.
-16. For a clean room after project deletion: `make discover-packmate-resources` then dry-run `make reset-lab`.
+7. Run `make configure-participant` and `make verify-demo-fork`.
+8. Run `make verify-github-write-readiness`.
+9. Run `make prepare-demo-baseline`; branch configuration is saved automatically.
+10. Run `make configure-promotion-registry` and its verifier.
+11. Run `make preflight`, `make bootstrap`, and `make verify-dev`.
+12. Run `make verify-demo-fork-live` and `make verify-gitops`.
+13. Start Pipeline `packmate-ci` with VolumeClaimTemplate **2 GiB** (rendered defaults use the fork).
+14. Promote via PR **in the fork**; Sync `packmate-prod` manually.
+15. For a clean room after project deletion: `make discover-packmate-resources` then dry-run `make reset-lab`.
 
 ### Why the Pipeline Python digest is not in Git
 
@@ -160,18 +159,12 @@ oc create -n packmate-lab -f .tekton/lab/packmate-ci-run.yaml
 # After it Succeeds and the AI quality gate is PASS:
 RUN=$(oc get pipelinerun -n packmate-lab -l tekton.dev/pipeline=packmate-ci \
         --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1:].metadata.name}')
-scripts/promote-backend-image.sh --pipelinerun "$RUN" --namespace packmate-lab --create-pr
+make promote PIPELINERUN="$RUN"
 ```
 
 The script edits only `deploy/overlays/prod/kustomization.yaml` and opens a pull
 request to `packmate-v2` — review it, then merge. Argo CD Application `packmate-prod`
 then goes **OutOfSync**; Sync it manually (SSO login, prune disabled) to deploy.
-
-Roll back a bad promotion the same way, in reverse:
-
-```bash
-scripts/rollback-prod-image.sh --create-pr
-```
 
 ## Publish images (instructor, once per version)
 
@@ -187,8 +180,8 @@ published digests; PROD only advances via a promotion PR.
 ## GitOps absent
 
 See `docs/INSTALL_GITOPS_PREREQUISITE.md` (`GITOPS_OPERATOR_REQUIRED`). Without the
-Operator, DEV Modules A–C still work; PROD prep is skipped with a warning and
-Modules D–F become a screenshot walkthrough.
+Operator, the Playground and DEV modules still work, but the standard production
+path cannot be completed live.
 
 ## Safety
 
@@ -197,7 +190,7 @@ Modules D–F become a screenshot walkthrough.
 - No model redeploy
 - No Operator install from lab scripts
 - No direct `oc apply -k deploy/overlays/prod` — Argo CD Sync only
-- No direct push to `packmate-v2` from promotion/rollback scripts — pull request only
+- No direct push to the prepared base branch from promotion automation — pull request only
 - Destructive cleanup (`make cleanup`) requires typing `DELETE-PACKMATE-LAB` and only ever targets `packmate-lab` (never `packmate-prod`)
 
 ## Validated release evidence (2026-07-22, DEV path)
@@ -221,10 +214,10 @@ Modules D–F become a screenshot walkthrough.
 | Rollouts / EvalHub | Optional / not configured |
 
 **Not yet independently re-validated on a fresh cluster (documented, not fabricated):**
-the `packmate-prod` split — `prepare-prod.sh`, `promote-backend-image.sh --create-pr`,
-`rollback-prod-image.sh --create-pr`, and `configure-argocd-lab-rbac.sh` — was added
+the `packmate-prod` split — `prepare-prod.sh`, promotion automation, and
+`configure-argocd-lab-rbac.sh` — was added
 after the run above. `make validate-prod` (offline render checks) and the repository
-test suite pass; a full live-cluster DEV→PROD→rollback cycle should be re-run and
+test suite pass; a full live-cluster DEV→PROD promotion and Sync cycle should be re-run and
 logged here (or in `docs/implementation/LAB_ACCEPTANCE_REPORT.md`) before the first
 graded class on a new cluster.
 

@@ -158,7 +158,7 @@ if [[ -z "${candidate_ref}" ]]; then
   printf 'INFO    Current PROD (%s) differs from baseline (%s)\n' \
     "$(packmate_short_digest "${current_digest}")" \
     "$(packmate_short_digest "${baseline_digest}")"
-  printf 'ACTION  Run: CONFIRM_DEMO_BASELINE_RESET=participant-fork-only make prepare-demo-baseline\n'
+  printf 'ACTION  Run: make prepare-demo-baseline\n'
   printf 'RESULT  BASELINE_DRIFT\n'
   exit 0
 fi

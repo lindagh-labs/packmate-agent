@@ -106,7 +106,7 @@ Anonymous `skopeo inspect` on all four: **OK**.
 | Live Deployment auto-replaced? | **No** — still GHCR `c10fbeb6…` |
 | `packmate-lab` backend | Unchanged (internal digest `c057f9f1…`) |
 
-**Minimal fix applied:** Role `packmate-pipeline` now includes `buildconfigs/instantiate` and `buildconfigs/instantiatebinary` (+ imagestream update verbs). Demonstrated blocker for the Pipeline module (Module 9 in the pre-restructure guide; Module C — CI in the current `docs/PARTICIPANT_GUIDE.md`) on a fresh namespace.
+**Minimal fix applied:** Role `packmate-pipeline` now includes `buildconfigs/instantiate` and `buildconfigs/instantiatebinary` (+ imagestream update verbs). This is required by the current Module 7 Pipeline.
 
 ---
 
@@ -191,13 +191,13 @@ Anonymous `skopeo inspect` on all four: **OK**.
 
 **LAB_READY_WITH_MANUAL_VISUAL_CHECKS**
 
-Technical path (images, bootstrap, verify, SSE, PipelineRun, Argo Sync, tests, quality gate) validated on a fresh GHCR-only namespace. Remaining gaps are intentional ClickOps visual checks in the participant guide. This verdict covers **Modules A–C** of the current `docs/PARTICIPANT_GUIDE.md` (OpenShift AI, Development, CI); it predates the `packmate-prod` split.
+Technical path (images, bootstrap, verify, SSE, PipelineRun, Argo Sync, tests, quality gate) was validated on a fresh GHCR-only namespace. The evidence predates the current Modules 1–9 guide and the final participant-owned GHCR flow.
 
 ---
 
 ## 12. DEV→PROD addendum (2026-07-23)
 
-The participant guide was restructured into Modules A–F (OpenShift AI, Development, CI, **Promotion**, **Production**, **Rollback**) and the following automation was added since § 1–11 above were written: `scripts/prepare-prod.sh`, `scripts/promote-backend-image.sh --create-pr`, `scripts/rollback-prod-image.sh --create-pr`, `scripts/configure-argocd-lab-rbac.sh`, `scripts/verify-prod.sh`, `scripts/verify-gitops.sh`, `scripts/validate-prod-overlay.sh`, `argocd/appproject-packmate.yaml`, `argocd/application-packmate-prod.yaml`.
+The participant guide is now organized as Modules 1–9 (RHDP, OpenShift AI, workspace, bootstrap, Playground, DEV, CI, promotion, and production). PROD and GitOps automation includes `scripts/prepare-prod.sh`, promotion automation, `scripts/configure-argocd-lab-rbac.sh`, verification scripts, and the Argo CD manifests.
 
 **Re-checked in this documentation pass (2026-07-23, offline/local — no live cluster in this environment):**
 
@@ -212,11 +212,10 @@ The participant guide was restructured into Modules A–F (OpenShift AI, Develop
 **Not re-checked in this pass — genuinely pending a live cluster:**
 
 - End-to-end `make bootstrap` on a fresh sandbox confirming `packmate-prod` namespace/Secret/RBAC/Argo objects are created as described in `prepare-prod.sh`.
-- A live PipelineRun → `promote-backend-image.sh --pipelinerun … --create-pr` → PR review/merge → Argo CD `packmate-prod` OutOfSync → Sync → Synced/Healthy → PROD Route smoke cycle (Modules C–E).
-- A live `rollback-prod-image.sh --create-pr` → merge → Sync cycle (Module F).
+- A live PipelineRun → Module 8 promotion PR review/merge → Argo CD `packmate-prod` OutOfSync → Module 9 Sync → Synced/Healthy → PROD Route smoke cycle.
 - SSO group/`promoter`-role propagation (log out/in) on a real Argo CD instance with `spec.rbac.scopes` patched by `configure-argocd-lab-rbac.sh`.
 
-**Recommendation:** run the § 1–10 acceptance procedure again end-to-end on a fresh sandbox, extended through Modules D–F, before the first graded DEV→PROD class, and log the result either as a new dated section here or as a fresh acceptance report. Until then, treat the PROD promotion/rollback/Argo-RBAC path as **implemented and offline-validated**, not yet **live-cluster acceptance-tested**.
+**Recommendation:** run the current Modules 1–9 procedure end-to-end on a fresh sandbox before the first graded DEV→PROD class. Until then, treat the promotion/Argo-RBAC path as **implemented and offline-validated**, not yet **live-cluster acceptance-tested**.
 
 ## Addendum — GitOps dual apps + portable PROD (2026-07-30)
 
@@ -233,7 +232,7 @@ The participant guide was restructured into Modules A–F (OpenShift AI, Develop
 |------|--------|
 | Canonical upstream | `Lindagh1/packmate-agent` @ `packmate-v2` — read-only for demos |
 | Writable target | Participant/demo fork (`GIT_REPO_URL`) |
-| Safety | `make verify-demo-fork`; promote/rollback emit `BLOCKED_CANONICAL_REPOSITORY_PROMOTION` against upstream |
+| Safety | `make verify-demo-fork`; promotion emits `BLOCKED_CANONICAL_REPOSITORY_PROMOTION` against upstream |
 | Argo CD | Applications use `__GIT_REPO_URL__` / `__GIT_REVISION__` (fork), not hard-coded canonical |
 | Release policy | One canonical `lab-v2.0.0`; no release per demonstration |
 | Tests | `scripts/tests/test-fork-first-workshop.sh` |
@@ -245,7 +244,7 @@ The participant guide was restructured into Modules A–F (OpenShift AI, Develop
 | Pre-bootstrap fork check | `make verify-demo-fork` — Argo upstream residue = INFO/ACTION |
 | Post-bootstrap fork check | `make verify-demo-fork-live` wired into `make verify-gitops` |
 | GitHub write readiness | `make verify-github-write-readiness` (askpass / ECONNREFUSED guidance) |
-| Repeatable demo baseline | `make verify-demo-baseline` / `make prepare-demo-baseline` (fork-only; Mode B `demo/sandbox2571`) |
+| Repeatable demo baseline | `make prepare-demo-baseline` (fork-only; `demo/packmate-workshop`, config saved automatically) |
 | Early no-diff promotion | `BLOCKED_NO_PROMOTION_DIFF` before branch creation when PROD == candidate |
 | Residue discovery | `make discover-packmate-resources` (read-only classifications) |
 | Safe reset | `make reset-lab` dry-run; destructive needs `CONFIRM_PACKMATE_RESET=packmate-lab-and-prod` |

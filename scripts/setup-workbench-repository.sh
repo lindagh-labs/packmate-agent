@@ -98,7 +98,8 @@ ignored: preserved (e.g. config/sandbox.env)
 
 Next:
   cd ${PACKMATE_REPOSITORY_DIRECTORY}
-  cp -n config/sandbox.env.example config/sandbox.env   # if needed
+  make configure-participant
+  make verify-demo-fork
   make preflight
   make bootstrap
   make verify-dev

@@ -1,12 +1,11 @@
 #!/usr/bin/env bash
 # Prepare a disposable demo PROD baseline in the participant fork ONLY.
 #
-# Default: read-only (delegates to verify-demo-baseline.sh).
-# Write mode requires:
-#   CONFIRM_DEMO_BASELINE_RESET=participant-fork-only
+# This command prepares the disposable participant-fork branch. Read-only checks
+# remain available separately through `make verify-demo-baseline`.
 #
 # Modes (DEMO_BASELINE_MODE):
-#   demo-branch (default, Mode B) — branch demo/sandbox2571 (or PACKMATE_DEMO_BRANCH)
+#   demo-branch (default, Mode B) — branch demo/packmate-workshop (or PACKMATE_DEMO_BRANCH)
 #   fork-packmate-v2 (Mode A)     — update fork packmate-v2 explicitly
 #
 # Never modifies Lindagh1/packmate-agent. Never creates release tags. Never force-pushes
@@ -27,9 +26,8 @@ packmate_load_fork_config "${ROOT}"
 
 OVERLAY_REL="deploy/overlays/prod/kustomization.yaml"
 OVERLAY="${ROOT}/${OVERLAY_REL}"
-CONFIRM_TOKEN="participant-fork-only"
 DEMO_BASELINE_MODE="${DEMO_BASELINE_MODE:-demo-branch}"
-PACKMATE_DEMO_BRANCH="${PACKMATE_DEMO_BRANCH:-demo/sandbox2571}"
+PACKMATE_DEMO_BRANCH="${PACKMATE_DEMO_BRANCH:-demo/packmate-workshop}"
 PIPELINERUN=""
 NAMESPACE="${PACKMATE_NAMESPACE:-packmate-lab}"
 CANDIDATE_REF=""
@@ -39,8 +37,8 @@ usage() {
   cat <<'EOF'
 Usage: prepare-demo-baseline.sh [--pipelinerun NAME] [--candidate REF] [--no-push]
 
-Default is read-only verification.
-Write/reset requires: CONFIRM_DEMO_BASELINE_RESET=participant-fork-only
+Writes only to a validated participant fork. Use `make verify-demo-baseline` for
+a read-only check.
 EOF
 }
 
@@ -54,18 +52,6 @@ while [[ $# -gt 0 ]]; do
     *) printf 'ERROR: unknown argument: %s\n' "$1" >&2; exit 1 ;;
   esac
 done
-
-verify_args=()
-[[ -n "${PIPELINERUN}" ]] && verify_args+=(--pipelinerun "${PIPELINERUN}" --namespace "${NAMESPACE}")
-[[ -n "${CANDIDATE_REF}" ]] && verify_args+=(--candidate "${CANDIDATE_REF}")
-
-if [[ "${CONFIRM_DEMO_BASELINE_RESET:-}" != "${CONFIRM_TOKEN}" ]]; then
-  printf '=== Packmate prepare-demo-baseline (read-only default) ===\n'
-  printf 'INFO    No write performed. To reset the disposable fork/demo branch:\n'
-  printf 'ACTION  CONFIRM_DEMO_BASELINE_RESET=%s make prepare-demo-baseline\n' "${CONFIRM_TOKEN}"
-  printf 'INFO    Default mode=%s (prefer Mode B demo branch for repeated demos)\n' "${DEMO_BASELINE_MODE}"
-  exec bash "${ROOT}/scripts/verify-demo-baseline.sh" "${verify_args[@]}"
-fi
 
 printf '=== Packmate prepare-demo-baseline (WRITE — fork only) ===\n'
 
@@ -169,7 +155,7 @@ case "${DEMO_BASELINE_MODE}" in
     if [[ "${target_branch}" != demo/* ]]; then
       packmate_fail "Mode B branch begins with demo/" \
         "PACKMATE_DEMO_BRANCH=${target_branch}" \
-        "Use e.g. demo/sandbox2571"
+        "Use e.g. demo/packmate-workshop"
       exit 1
     fi
     packmate_pass "Mode B disposable demo branch (${target_branch})"
@@ -241,22 +227,46 @@ if [[ "${PUSH}" == "true" ]]; then
     packmate_fail "Push demo baseline branch to fork" \
       "git push failed (often HTTPS 403 / VS Code askpass ECONNREFUSED)" \
       "Unset GIT_ASKPASS; authenticate (gh auth login or HTTPS token at prompt); then: git push -u origin ${target_branch}"
-    printf 'ACTION  After push: set GIT_REPO_URL to the fork, GIT_REVISION=%s PROMOTION_BASE_BRANCH=%s\n' \
-      "${target_branch}" "${target_branch}"
-    printf 'ACTION  Re-run make bootstrap / apply Argo so Applications follow the demo branch\n'
+    printf 'ACTION  Authenticate safely, then run: git push -u origin %s\n' "${target_branch}"
+    printf 'ACTION  Re-run make prepare-demo-baseline so local configuration is verified and saved\n'
     exit 1
   fi
 else
   printf 'INFO    --no-push: branch %s ready locally only\n' "${target_branch}"
 fi
 
+# Persist the coordinated local state only after the branch is prepared. The file
+# is gitignored and contains no GitHub/registry credentials.
+CONFIG="${PACKMATE_CONFIG:-${ROOT}/config/sandbox.env}"
+if [[ ! -f "${CONFIG}" && -f "${ROOT}/config/sandbox.env.example" ]]; then
+  install -m 600 "${ROOT}/config/sandbox.env.example" "${CONFIG}"
+fi
+python3 "${ROOT}/scripts/update-sandbox-config.py" \
+  --file "${CONFIG}" \
+  --set "GIT_REPO_URL=https://github.com/${writable_norm}.git" \
+  --set "GIT_REVISION=${target_branch}" \
+  --set "PROMOTION_BASE_BRANCH=${target_branch}" \
+  --set "PACKMATE_DEMO_BRANCH=${target_branch}"
+
+saved_revision="$(sed -n 's/^GIT_REVISION=//p' "${CONFIG}" | tail -1)"
+saved_base="$(sed -n 's/^PROMOTION_BASE_BRANCH=//p' "${CONFIG}" | tail -1)"
+saved_demo="$(sed -n 's/^PACKMATE_DEMO_BRANCH=//p' "${CONFIG}" | tail -1)"
+[[ "$(git branch --show-current)" == "${target_branch}" \
+  && "${saved_revision}" == "${target_branch}" \
+  && "${saved_base}" == "${target_branch}" \
+  && "${saved_demo}" == "${target_branch}" ]] || {
+  packmate_fail "Branch configuration persisted" \
+    "current=$(git branch --show-current) revision=${saved_revision} base=${saved_base} demo=${saved_demo}" \
+    "Re-run make configure-participant, then make prepare-demo-baseline"
+  exit 1
+}
+packmate_pass "Current branch and local GitOps/promotion settings agree"
+
 printf '\n'
 printf 'RESULT  DEMO_BASELINE_READY branch=%s changed=%s baseline=%s\n' \
   "${target_branch}" "${changed}" "${baseline_digest}"
-printf 'ACTION  Set in config/sandbox.env (gitignored):\n'
-printf '        GIT_REPO_URL=https://github.com/%s.git\n' "${writable_norm}"
-printf '        GIT_REVISION=%s\n' "${target_branch}"
-printf '        PROMOTION_BASE_BRANCH=%s\n' "${target_branch}"
-printf 'ACTION  Point Argo CD Applications at that fork/revision (make bootstrap / prepare-prod)\n'
+printf 'RESULT  CONFIG_SAVED GIT_REVISION=%s PROMOTION_BASE_BRANCH=%s PACKMATE_DEMO_BRANCH=%s\n' \
+  "${saved_revision}" "${saved_base}" "${saved_demo}"
+printf 'NEXT    make verify-demo-fork\n'
 printf 'ACTION  Then: make verify-demo-baseline -- --pipelinerun <name>\n'
 exit 0

@@ -43,7 +43,6 @@ Services:
 ./scripts/canary-demo.sh resume    # resume after pause
 ./scripts/canary-demo.sh abort     # abort canary, revert to stable
 ./scripts/canary-demo.sh retry     # retry failed analysis
-./scripts/canary-demo.sh rollback  # undo to previous revision
 ./scripts/canary-demo.sh history   # revision list
 ```
 

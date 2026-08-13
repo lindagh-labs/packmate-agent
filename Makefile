@@ -3,7 +3,7 @@
 ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 SHELL := /bin/bash
 
-.PHONY: help preflight bootstrap verify verify-dev verify-prod verify-gitops \
+.PHONY: help configure-participant preflight bootstrap verify verify-dev verify-prod verify-gitops \
 	prepare-prod configure-argocd-rbac cleanup test render promote validate-prod \
 	verify-python-deps resolve-pipeline-python-image render-pipeline validate-pipeline \
 	configure-git setup-workbench-repository security-check \
@@ -13,11 +13,12 @@ SHELL := /bin/bash
 	verify-demo-fork-live verify-github-write-readiness verify-demo-baseline \
 	prepare-demo-baseline discover-packmate-resources \
 	reset-lab acceptance-static acceptance-prebootstrap acceptance-postbootstrap \
-	diagnose-latest-pipelinerun
+	diagnose-latest-pipelinerun guide validate-guide
 
 help:
 	@echo "Packmate lab targets:"
 	@echo "  make setup-workbench-repository  Safe clone/update into packmate-agent/"
+	@echo "  make configure-participant  Configure fork, branch, GHCR owner, and upstream safety"
 	@echo "  make configure-git          Repository-local Git user.name / user.email"
 	@echo "  make preflight              Cluster, repo, mirror, and image checks"
 	@echo "  make bootstrap              Prerequisites + Argo CD DEV reconcile + PROD prep"
@@ -25,7 +26,7 @@ help:
 	@echo "  make check-gitops-prerequisites  Verify Red Hat OpenShift GitOps readiness"
 	@echo "  make install-gitops-operator     Instructor-only Operator install"
 	@echo "  make wait-for-gitops        Wait until GitOps check passes"
-	@echo "  make configure-promotion-registry  Instructor: GHCR push/pull Secrets"
+	@echo "  make configure-promotion-registry  Safely prompt for GHCR access (never stores tokens in Git)"
 	@echo "  make verify-promotion-registry     Verify promotion registry config"
 	@echo "  make verify-resource-ownership     Fail on DEV/PROD dual ownership"
 	@echo "  make rotate-prod-llm-secret Instructor-only Secret rotation"
@@ -38,7 +39,7 @@ help:
 	@echo "  make verify-demo-fork-live  Post-bootstrap: Applications must follow the fork"
 	@echo "  make verify-github-write-readiness  GitHub read vs write readiness"
 	@echo "  make verify-demo-baseline   Read-only: PROD digest vs Pipeline candidate"
-	@echo "  make prepare-demo-baseline  Reset disposable fork/demo PROD baseline (needs CONFIRM_…)"
+	@echo "  make prepare-demo-baseline  Prepare disposable fork branch and save matching config"
 	@echo "  make discover-packmate-resources  Read-only residue discovery"
 	@echo "  make reset-lab              Dry-run Packmate reset (needs CONFIRM_… to delete)"
 	@echo "  make acceptance-static      Offline clean-room acceptance"
@@ -52,9 +53,14 @@ help:
 	@echo "  make test                   Unit tests + quality gate + security-check"
 	@echo "  make render                 Render Kustomize DEV + PROD overlays"
 	@echo "  make promote                Promote backend digest (see script --help)"
+	@echo "  make guide                  Generate participant HTML, DOCX, and PDF"
+	@echo "  make validate-guide         Validate guide structure and generated outputs"
 
 setup-workbench-repository:
 	@bash "$(ROOT)/scripts/setup-workbench-repository.sh"
+
+configure-participant:
+	@bash "$(ROOT)/scripts/configure-participant.sh"
 
 configure-git:
 	@bash "$(ROOT)/scripts/configure-git-identity.sh"
@@ -150,6 +156,7 @@ test:
 	  bash "$(ROOT)/scripts/security-check.sh"; \
 	  bash "$(ROOT)/scripts/tests/test-pipeline-portability.sh"; \
 	  bash "$(ROOT)/scripts/tests/test-workbench-repository-setup.sh"; \
+	  bash "$(ROOT)/scripts/tests/test-participant-configuration.sh"; \
 	bash "$(ROOT)/scripts/tests/test-gitops-portable-prod.sh"; \
 	bash "$(ROOT)/scripts/tests/test-bootstrap-ownership-secrets.sh"; \
 	bash "$(ROOT)/scripts/tests/test-kustomize-replicas-recovery.sh"; \
@@ -161,7 +168,8 @@ render:
 	@bash "$(ROOT)/scripts/render-manifests.sh"
 
 promote:
-	@bash "$(ROOT)/scripts/promote-backend-image.sh"
+	@test -n "$(PIPELINERUN)" || { echo "ERROR: PipelineRun name required"; echo "ACTION: make promote PIPELINERUN=<pipelinerun-name>"; exit 1; }
+	@bash "$(ROOT)/scripts/promote-backend-image.sh" --pipelinerun "$(PIPELINERUN)" --create-pr
 
 security-check:
 	@bash "$(ROOT)/scripts/security-check.sh"
@@ -189,3 +197,9 @@ verify-resource-ownership:
 
 rotate-prod-llm-secret:
 	@ROTATE_PACKMATE_PROD_LLM_SECRET=true bash "$(ROOT)/scripts/rotate-prod-llm-secret.sh"
+
+guide:
+	@bash "$(ROOT)/scripts/generate-participant-guide.sh"
+
+validate-guide:
+	@bash "$(ROOT)/scripts/validate-participant-guide.sh"

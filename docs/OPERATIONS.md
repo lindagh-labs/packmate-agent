@@ -8,7 +8,7 @@
 | `make verify-demo-fork-live` | Post-bootstrap: Applications must follow the fork |
 | `make verify-github-write-readiness` | Distinguish read access vs authenticated write (no tokens printed) |
 | `make verify-demo-baseline` | Read-only: current PROD digest vs Pipeline candidate / known-good baseline |
-| `make prepare-demo-baseline` | Fork-only demo PROD baseline reset (`CONFIRM_DEMO_BASELINE_RESET=participant-fork-only`) |
+| `make prepare-demo-baseline` | Fork-only demo PROD baseline plus coordinated local config |
 | `make discover-packmate-resources` | Read-only residue discovery (STALE_PACKMATE classification) |
 | `make reset-lab` | Dry-run Packmate reset; destructive needs `CONFIRM_PACKMATE_RESET=packmate-lab-and-prod` |
 | `make preflight` | Cluster/image checks |
@@ -24,7 +24,7 @@
 | `make cleanup` | Interactive DEV (`packmate-lab`) namespace delete only |
 | `make test` | Unit tests + quality gate + security-check |
 | `make render` | Kustomize render (DEV + PROD overlays) |
-| `make promote` | `scripts/promote-backend-image.sh` (see `--help`) |
+| `make promote PIPELINERUN=<name>` | Validated candidate → promotion PR in the fork |
 
 ## Environments
 
@@ -33,14 +33,14 @@
 | DEV | `packmate-lab` | `make bootstrap` | Workbench, Playground, AI asset endpoints, Pipeline `packmate-ci`, app workloads |
 | PROD | `packmate-prod` | Argo CD Sync only | App workloads only |
 
-## Promotion, Sync, and rollback — without the Argo CD admin password
+## Promotion and Sync — without the Argo CD admin password
 
 ## Fork-first workshop model
 
 - Canonical upstream: `Lindagh1/packmate-agent` (release `lab-v2.0.0`).
 - Writable repo: participant/instructor fork (`GIT_REPO_URL`).
 - Argo CD Applications use `repoURL=GIT_REPO_URL` and `targetRevision=GIT_REVISION`.
-- Promote/rollback open PRs **inside the fork** only (`BLOCKED_CANONICAL_REPOSITORY_PROMOTION` otherwise).
+- Promotion opens a PR **inside the fork** only (`BLOCKED_CANONICAL_REPOSITORY_PROMOTION` otherwise).
 - Demonstrations do not create tags or GitHub Releases.
 
 Every PROD change is: **Pipeline validates (DEV) → pull request promotes (fork) → merge (fork) →
@@ -51,10 +51,10 @@ AppProject `promoter` role (`get` + `sync` on `Application/packmate-prod`).
 **Promote** a validated candidate digest:
 
 ```bash
-scripts/promote-backend-image.sh --pipelinerun <pipelinerun-name> --namespace packmate-lab --create-pr
+make promote PIPELINERUN=<pipelinerun-name>
 ```
 
-If the script prints `BLOCKED_NO_PROMOTION_DIFF`, PROD already uses the candidate digest — there is **no** PR to open. Resolve with `make verify-demo-baseline` and (instructor, fork only) `CONFIRM_DEMO_BASELINE_RESET=participant-fork-only make prepare-demo-baseline` before re-running the Pipeline exercise. Never invent digests; never change Lindagh1 PROD for a demo.
+If the command prints `BLOCKED_NO_PROMOTION_DIFF`, PROD already uses the candidate digest — there is **no** PR to open. Resolve with `make prepare-demo-baseline` before re-running the Pipeline exercise. The command changes only the participant fork and saves its branch configuration. Never invent digests; never change Lindagh1 for a demo.
 
 The script edits only `deploy/overlays/prod/kustomization.yaml` and opens a PR to `PROMOTION_BASE_BRANCH` **in the fork**. Review, then merge in the fork.
 
@@ -72,14 +72,6 @@ argocd app wait packmate-prod --health --grpc-web
 ```
 
 (Requires an SSO-issued Argo CD auth token — never the local admin password.)
-
-**Roll back** a bad promotion:
-
-```bash
-scripts/rollback-prod-image.sh --create-pr
-```
-
-Restores the previous backend digest found in the Git history of the PROD overlay, opens a PR, then Sync again the same way. No rebuild, no direct cluster edit.
 
 **Verify** after any Sync:
 
@@ -155,7 +147,7 @@ podman build -t packmate-baggage-policy-mcp:dev -f mcp-servers/baggage-policy/Co
 
 - DEV Argo demo Application (`packmate-lab`): manual sync, illustrative only.
 - **PROD** Application `packmate-prod`: **manual sync always**, prune off, self-heal off, destination `packmate-prod` only.
-- PROD images move by digest, only after a merged promotion/rollback pull request — never by editing the cluster directly.
+- PROD images move by digest, only after a merged promotion pull request — never by editing the cluster directly.
 - `packmate-prod-llm` Secret is excluded from Sync diffing (`ignoreDifferences`) so it is never pruned or overwritten by Git.
 
 ## Incident checklist
@@ -165,7 +157,7 @@ podman build -t packmate-baggage-policy-mcp:dev -f mcp-servers/baggage-policy/Co
 3. Secret present: `packmate-llm` (DEV) / `packmate-prod-llm` (PROD)
 4. Recent Argo CD sync status for `packmate-prod` (`make verify-gitops`, `oc get application packmate-prod -n openshift-gitops`)
 5. Quality gate on the last promoted commit
-6. If PROD is unhealthy after a promotion: `scripts/rollback-prod-image.sh --create-pr`, merge, Sync — do not `oc edit` the Deployment directly (Argo CD will revert it on the next Sync)
+6. If PROD is unhealthy after a promotion: stop, preserve evidence, and correct the desired state through the normal reviewed Git process; do not edit the Deployment directly
 
 ## Lab release validation pointers (2026-07-22, DEV path)
 
@@ -174,13 +166,12 @@ podman build -t packmate-baggage-policy-mcp:dev -f mcp-servers/baggage-policy/Co
 - Argo Application `packmate-lab` Synced/Healthy (destination `packmate-repro`)
 - Do not auto-promote Pipeline digests onto live Deployments
 
-The `packmate-prod` split (`prepare-prod.sh`, `promote-backend-image.sh --create-pr`,
-`rollback-prod-image.sh --create-pr`, `configure-argocd-lab-rbac.sh`) was added after
+The `packmate-prod` split (`prepare-prod.sh`, promotion automation,
+`configure-argocd-lab-rbac.sh`) was added after
 this run; `make validate-prod` and the repository test suite pass, but a fresh
-live-cluster DEV→PROD→rollback cycle has not yet been re-logged here — see
+live-cluster DEV→PROD promotion and Sync cycle has not yet been re-logged here — see
 `docs/implementation/LAB_ACCEPTANCE_REPORT.md` for current status.
 
 ## Portable PROD images
 
 Never commit OpenShift internal-registry digests to the shared PROD overlay. Use GHCR promotion via publish-candidate + promote-backend-image.sh.
-

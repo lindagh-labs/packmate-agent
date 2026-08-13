@@ -19,6 +19,20 @@ TMP="$(mktemp -d /tmp/packmate-demo-baseline-test.XXXXXX)"
 cleanup() { rm -rf "${TMP}"; }
 trap cleanup EXIT
 
+# Keep this suite deterministic and offline even when skopeo happens to be
+# installed on the developer machine. The all-zero fixture below represents an
+# unavailable image; the named known-good fixtures are treated as available.
+mkdir -p "${TMP}/bin"
+cat >"${TMP}/bin/skopeo" <<'EOF'
+#!/usr/bin/env bash
+case "$*" in
+  *sha256:0000000000000000000000000000000000000000000000000000000000000001*) exit 1 ;;
+  *) printf '{}\n' ;;
+esac
+EOF
+chmod +x "${TMP}/bin/skopeo"
+export PATH="${TMP}/bin:${PATH}"
+
 BASELINE="sha256:03beee2d3dd9a16ae065a2844b9bb1e9eb9e7820877d7196aa24cfbdb241c2d5"
 CANDIDATE="sha256:878b556d507bf47867c0bdbdcecc06d771852c50c4901cc9705d50d2ab73d2e3"
 OLDER="sha256:c10fbeb6fbd63ca478e1b8231ddf874ec7ee1c80663b641d802ffca6e826849f"
@@ -160,8 +174,7 @@ git -C "${TMP}/canonical" commit -qm 'fixture'
 set +e
 (
   cd "${TMP}/canonical"
-  env CONFIRM_DEMO_BASELINE_RESET=participant-fork-only \
-    GIT_REPO_URL='https://github.com/Lindagh1/packmate-agent.git' \
+  env GIT_REPO_URL='https://github.com/Lindagh1/packmate-agent.git' \
     CANONICAL_GIT_REPO_URL='https://github.com/Lindagh1/packmate-agent.git' \
     ALLOW_CANONICAL_REPO_PROMOTION=false \
     PACKMATE_DEMO_BASELINE_DIGEST="${BASELINE}" \
@@ -182,9 +195,7 @@ setup_fork_repo "${TMP}/fork-prep-a" "${CANDIDATE}"
 set +e
 (
   cd "${TMP}/fork-prep-a"
-  # Skip live skopeo by pre-seeding a fake? Real skopeo may work for public GHCR.
-  env CONFIRM_DEMO_BASELINE_RESET=participant-fork-only \
-    GIT_REPO_URL='https://github.com/demo-user/packmate-agent.git' \
+  env GIT_REPO_URL='https://github.com/demo-user/packmate-agent.git' \
     CANONICAL_GIT_REPO_URL='https://github.com/Lindagh1/packmate-agent.git' \
     ALLOW_CANONICAL_REPO_PROMOTION=false \
     PACKMATE_DEMO_BASELINE_DIGEST="${BASELINE}" \
@@ -218,8 +229,7 @@ setup_fork_repo "${TMP}/fork-prep-b" "${CANDIDATE}"
 set +e
 (
   cd "${TMP}/fork-prep-b"
-  env CONFIRM_DEMO_BASELINE_RESET=participant-fork-only \
-    GIT_REPO_URL='https://github.com/demo-user/packmate-agent.git' \
+  env GIT_REPO_URL='https://github.com/demo-user/packmate-agent.git' \
     CANONICAL_GIT_REPO_URL='https://github.com/Lindagh1/packmate-agent.git' \
     ALLOW_CANONICAL_REPO_PROMOTION=false \
     PACKMATE_DEMO_BASELINE_DIGEST="${BASELINE}" \
@@ -326,7 +336,7 @@ fi
 
 # 17. no canonical commit changed — prepare against fork only (static)
 if grep -q 'Never run against Lindagh1' "${ROOT}/scripts/prepare-demo-baseline.sh" \
-  && grep -q 'CONFIRM_DEMO_BASELINE_RESET' "${ROOT}/scripts/prepare-demo-baseline.sh"; then
+  && grep -q 'packmate_assert_origin_not_canonical' "${ROOT}/scripts/prepare-demo-baseline.sh"; then
   pass "17. no canonical commit changed (guards present)"
 else
   fail "17. no canonical commit changed (guards present)"
@@ -370,8 +380,7 @@ setup_fork_repo "${TMP}/fork-repeat" "${CANDIDATE}"
 set +e
 (
   cd "${TMP}/fork-repeat"
-  env CONFIRM_DEMO_BASELINE_RESET=participant-fork-only \
-    GIT_REPO_URL='https://github.com/demo-user/packmate-agent.git' \
+  env GIT_REPO_URL='https://github.com/demo-user/packmate-agent.git' \
     CANONICAL_GIT_REPO_URL='https://github.com/Lindagh1/packmate-agent.git' \
     ALLOW_CANONICAL_REPO_PROMOTION=false \
     PACKMATE_DEMO_BASELINE_DIGEST="${OLDER}" \
@@ -386,8 +395,7 @@ git -C "${TMP}/fork-repeat" add deploy/overlays/prod/kustomization.yaml
 git -C "${TMP}/fork-repeat" commit -qm 'Simulate merged promotion' || true
 (
   cd "${TMP}/fork-repeat"
-  env CONFIRM_DEMO_BASELINE_RESET=participant-fork-only \
-    GIT_REPO_URL='https://github.com/demo-user/packmate-agent.git' \
+  env GIT_REPO_URL='https://github.com/demo-user/packmate-agent.git' \
     CANONICAL_GIT_REPO_URL='https://github.com/Lindagh1/packmate-agent.git' \
     ALLOW_CANONICAL_REPO_PROMOTION=false \
     PACKMATE_DEMO_BASELINE_DIGEST="${BASELINE}" \

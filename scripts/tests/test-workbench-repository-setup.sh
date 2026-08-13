@@ -14,12 +14,9 @@ cleanup() { rm -rf "${BASE}"; }
 trap cleanup EXIT
 
 SRC="${BASE}/opt/app-root/src"
-REPO_URL="${PACKMATE_TEST_REPOSITORY_URL:-file://${ROOT}/.git}"
-# file:// clones of a working tree .git need a bare or allow local path
-# Prefer cloning from the real remote when network works; else use local path.
-if git -C "${ROOT}" remote get-url origin >/dev/null 2>&1; then
-  REPO_URL="$(git -C "${ROOT}" remote get-url origin)"
-fi
+# This test validates repository handling, not network availability. Callers can
+# still provide a remote URL explicitly when they want an integration check.
+REPO_URL="${PACKMATE_TEST_REPOSITORY_URL:-file://${ROOT}}"
 
 run_setup() {
   PACKMATE_REPOSITORY_URL="${REPO_URL}" \

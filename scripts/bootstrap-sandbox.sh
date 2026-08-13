@@ -13,6 +13,7 @@ source "${ROOT}/scripts/lib/sandbox-common.sh"
 source "${ROOT}/scripts/lib/ensure-secret.sh"
 
 packmate_require_oc
+packmate_require_human_user || exit 1
 packmate_load_config "${ROOT}" || exit 1
 
 log() { packmate_log "$*"; }

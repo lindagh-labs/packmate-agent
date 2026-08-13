@@ -27,6 +27,8 @@ if [[ -f "${ROOT}/scripts/lib/sandbox-common.sh" ]]; then
 fi
 # shellcheck disable=SC1091
 source "${ROOT}/scripts/lib/ensure-secret.sh"
+# shellcheck disable=SC1091
+source "${ROOT}/scripts/lib/promotion-registry.sh"
 
 if declare -F packmate_log >/dev/null 2>&1; then
   log() { packmate_log "$*"; }
@@ -44,6 +46,11 @@ fi
 
 command -v oc >/dev/null 2>&1 || die "oc CLI not found"
 oc whoami >/dev/null 2>&1 || die "not logged in to OpenShift (oc whoami failed)"
+if declare -F packmate_require_human_user >/dev/null 2>&1; then
+  packmate_require_human_user || exit 1
+elif [[ "$(oc whoami)" == system:serviceaccount:* ]]; then
+  die "BLOCKED_OPENSHIFT_SERVICE_ACCOUNT_IDENTITY — run oc logout, then oc login --web"
+fi
 
 PACKMATE_LAB_NAMESPACE="${PACKMATE_LAB_NAMESPACE:-packmate-lab}"
 PACKMATE_PROD_NAMESPACE="${PACKMATE_PROD_NAMESPACE:-packmate-prod}"
@@ -79,6 +86,20 @@ else
 fi
 oc label namespace "${PACKMATE_PROD_NAMESPACE}" packmate.io/environment=prod --overwrite >/dev/null
 log "OK: labeled namespace/${PACKMATE_PROD_NAMESPACE} packmate.io/environment=prod"
+
+# Copy the participant's GHCR credential from DEV without exposing its value.
+# Runtime ServiceAccounts reference the target Secret declaratively in Git.
+PROMOTION_PUSH_SECRET="${PACKMATE_PROMOTION_PUSH_SECRET:-packmate-ghcr-push}"
+PROMOTION_PULL_SECRET="${PACKMATE_PROMOTION_PULL_SECRET:-packmate-ghcr-pull}"
+if oc -n "${PACKMATE_LAB_NAMESPACE}" get secret "${PROMOTION_PUSH_SECRET}" >/dev/null 2>&1; then
+  packmate_copy_registry_secret \
+    "${PACKMATE_LAB_NAMESPACE}" "${PROMOTION_PUSH_SECRET}" \
+    "${PACKMATE_PROD_NAMESPACE}" "${PROMOTION_PULL_SECRET}" \
+    || die "Failed to prepare PROD registry pull Secret"
+  log "OK: prepared Secret/${PROMOTION_PULL_SECRET} for immutable GHCR candidates (value not shown)"
+else
+  die "Promotion registry Secret/${PROMOTION_PUSH_SECRET} missing — run make configure-promotion-registry"
+fi
 
 # ---------------------------------------------------------------------------
 # 2) Secret packmate-prod-llm from LLM_* env — values never printed.

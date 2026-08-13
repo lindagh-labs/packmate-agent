@@ -2,15 +2,15 @@
 
 `GITOPS_OPERATOR_REQUIRED`
 
-OpenShift GitOps is **required** for Modules D–F of the Packmate DEV→PROD lab
-(Promotion, Production, Rollback) — it is no longer just a visual add-on, since
+OpenShift GitOps is **required** for Modules 4, 8, and 9 of the Packmate DEV→PROD lab
+(GitOps preparation, promotion, and production) — it is not just a visual add-on, since
 `packmate-prod` is deployed exclusively by Argo CD Sync. Participants never
 install Operators and never use the Argo CD admin password.
 
 ## When you need this
 
-If `make preflight` reports that the Argo CD Application CRD is absent, Modules D–F
-(promotion review, PROD Sync, rollback Sync) cannot run live. Manifests under
+If `make preflight` reports that the Argo CD Application CRD is absent, the GitOps
+preparation, promotion, and PROD Sync modules cannot run live. Manifests under
 `argocd/` still validate with `oc apply --dry-run=client`, and `make validate-prod`
 still checks the rendered PROD overlay offline.
 
@@ -47,8 +47,8 @@ Applied automatically by `scripts/prepare-prod.sh` (auto-run from `make bootstra
 
 ## If GitOps stays unavailable
 
-Document Modules D–F as a walkthrough using screenshots from a prepared cluster,
-and continue the lab with Modules A–C (OpenShift AI, Development, CI).
+Without this prerequisite, stop before the GitOps bootstrap rather than claiming
+the standard Modules 1–9 path completed.
 
 ## Sandbox validation note (2026-07-22)
 

@@ -3,6 +3,7 @@
 # Python digest via scripts/render-packmate-pipeline.sh.
 # Placeholder: __PACKMATE_PIPELINE_PYTHON_IMAGE__
 # Placeholder: __PACKMATE_PIPELINE_CLI_IMAGE__
+# Participant settings are rendered from config/sandbox.env as well.
 # Participant: OpenShift Console → Pipelines → packmate-ci → Start
 # IMPORTANT: workspace "source" MUST use a VolumeClaimTemplate (shared PVC).
 #            Empty Directory does NOT persist between tasks — clone output is lost.
@@ -68,11 +69,11 @@ spec:
   params:
     - name: git-url
       type: string
-      # Writable fork URL — override in PipelineRun; do not use canonical Lindagh1/packmate-agent for demos
-      default: https://github.com/YOUR_GITHUB_USERNAME/packmate-agent.git
+      # Writable fork URL injected by bootstrap; canonical upstream is blocked.
+      default: __PACKMATE_GIT_REPO_URL__
     - name: git-revision
       type: string
-      default: packmate-v2
+      default: __PACKMATE_GIT_REVISION__
     - name: quality-threshold
       type: string
       default: "0.90"
@@ -454,11 +455,11 @@ spec:
                   fieldRef:
                     fieldPath: metadata.name
               - name: PACKMATE_PROMOTION_REGISTRY
-                value: ghcr.io
+                value: __PACKMATE_PROMOTION_REGISTRY__
               - name: PACKMATE_PROMOTION_REGISTRY_OWNER
-                value: lindagh1
+                value: __PACKMATE_PROMOTION_REGISTRY_OWNER__
               - name: PACKMATE_PROMOTION_IMAGE_NAME
-                value: packmate-backend
+                value: __PACKMATE_PROMOTION_IMAGE_NAME__
               - name: PACKMATE_PROMOTION_REGISTRY_MODE
                 value: external
               - name: PACKMATE_REQUIRE_PORTABLE_PROD_IMAGE
@@ -484,7 +485,7 @@ spec:
               trap cleanup EXIT
               if [[ ! -f /var/run/secrets/packmate-ghcr-push/.dockerconfigjson ]]; then
                 echo "ERROR: push Secret packmate-ghcr-push not mounted"
-                echo "Instructor: make configure-promotion-registry"
+                echo "ACTION: make configure-promotion-registry"
                 exit 1
               fi
               cp /var/run/secrets/packmate-ghcr-push/.dockerconfigjson "${AUTHFILE}"
