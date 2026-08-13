@@ -22,13 +22,9 @@ spec:
     name: packmate-ci
   taskRunTemplate:
     serviceAccountName: packmate-pipeline
-  params:
-    - name: git-url
-      value: https://github.com/YOUR_GITHUB_USERNAME/packmate-agent.git
-    - name: git-revision
-      value: packmate-v2
-    - name: quality-threshold
-      value: "0.90"
+  # Deliberately omit params: bootstrap renders the fork URL, prepared branch,
+  # quality threshold, and cluster-resolved tool images as Pipeline defaults.
+  # Supplying static values here would override that coordinated live state.
   workspaces:
     - name: source
       volumeClaimTemplate:
