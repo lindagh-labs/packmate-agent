@@ -33,5 +33,14 @@ spec:
       jsonPointers:
         - /data
         - /stringData
+    # OpenShift injects one internal-registry dockercfg Secret reference into
+    # every ServiceAccount. Ignore only those generated entries and annotation;
+    # keep comparing the Git-owned packmate-ghcr-pull entry.
+    - group: ""
+      kind: ServiceAccount
+      jqPathExpressions:
+        - '.imagePullSecrets[]? | select(.name | test("-dockercfg-"))'
+        - '.secrets[]? | select(.name | test("-dockercfg-"))'
+        - '.metadata.annotations."openshift.io/internal-registry-pull-secret-ref"'
   # Explicitly omit automated.prune / automated.selfHeal.
   revisionHistoryLimit: 5

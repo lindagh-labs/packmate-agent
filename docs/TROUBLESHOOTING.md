@@ -301,6 +301,19 @@ ROTATE_PACKMATE_PROD_LLM_SECRET=true make rotate-prod-llm-secret
 ```
 
 Do not repeatedly `oc apply` the Secret to “fix” anything.
+
+## Argo CD remains OutOfSync on PROD ServiceAccounts after a successful Sync
+
+OpenShift automatically adds a generated `*-dockercfg-*` pull Secret and the
+matching annotation to every ServiceAccount. These fields do not come from the
+Packmate overlay. The `packmate-prod` Application ignores only those generated
+entries while continuing to compare the Git-owned `packmate-ghcr-pull` entry.
+
+If all four ServiceAccounts remain OutOfSync, update to the current workshop
+branch and rerun `make prepare-prod`, then hard-refresh `packmate-prod`. Do not
+remove generated dockercfg Secrets or disable comparison for all
+`imagePullSecrets`.
+
 ## Argo CD shows "permission denied" / promoter role has no effect after RBAC setup
 
 Symptom: the instructor just ran `make configure-argocd-rbac` (or `CREATE_ARGOCD_RBAC=true`

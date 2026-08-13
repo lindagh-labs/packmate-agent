@@ -45,14 +45,21 @@ grep -q 'path: deploy/overlays/prod' "${ROOT}/argocd/application-packmate-prod.y
   && pass "PROD automatic sync disabled in manifest" \
   || fail "PROD must not automate sync"
 
+grep -q 'kind: ServiceAccount' "${ROOT}/argocd/application-packmate-prod.yaml" \
+  && grep -q -- '-dockercfg-' "${ROOT}/argocd/application-packmate-prod.yaml" \
+  && grep -q 'packmate-ghcr-pull' "${ROOT}/deploy/overlays/prod/kustomization.yaml" \
+  && pass "PROD ignores only OpenShift-generated ServiceAccount pull secrets" \
+  || fail "PROD ServiceAccount generated-field ignore"
+
 # PROD overlay portable
 ! grep -qE 'image-registry\.openshift-image-registry\.svc' "${ROOT}/deploy/overlays/prod/kustomization.yaml" \
   && pass "PROD overlay has no internal registry reference" \
   || fail "PROD overlay must not use internal registry"
 
-grep -q 'ghcr.io/lindagh1/packmate-backend' "${ROOT}/deploy/overlays/prod/kustomization.yaml" \
-  && pass "PROD backend uses durable GHCR baseline" \
-  || fail "PROD backend GHCR baseline"
+grep -Eq 'newName:[[:space:]]+ghcr\.io/[A-Za-z0-9_.-]+/packmate-backend' \
+    "${ROOT}/deploy/overlays/prod/kustomization.yaml" \
+  && pass "PROD backend uses durable GHCR image" \
+  || fail "PROD backend durable GHCR image"
 
 # DEV overlay must not declare Workbench/Pipeline kinds
 if grep -RInE 'kind:\s*(Notebook|Pipeline|PipelineRun|Workbench)' "${ROOT}/deploy/overlays/dev" >/dev/null 2>&1; then
