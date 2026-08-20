@@ -14,8 +14,8 @@ resources:
 images:
   - name: quay.io/example/packmate-backend
     # Durable external baseline (lab-v1.0.0). Never commit OpenShift internal-registry digests.
-    newName: ghcr.io/lindagh1/packmate-backend
-    digest: sha256:c10fbeb6fbd63ca478e1b8231ddf874ec7ee1c80663b641d802ffca6e826849f
+    newName: ghcr.io/lindagh-labs/packmate-backend
+    digest: sha256:85bfb4dbae432d035d5b933b5870e020dfd7c6e532dd9000332a5c4c5d9437b6
   - name: quay.io/example/packmate-frontend
     newName: ghcr.io/lindagh1/packmate-frontend
     digest: sha256:d6ade3f968a8e1057cb7e846a6dbded4c0f45f8b1780d16d5dd9d76b55d08305
